@@ -1,6 +1,6 @@
 {
     "type": "package",
-    "name": "elm-explorations/hashmap",
+    "name": "lamdera/hashmap",
     "summary": "Hash based Dict and Set implementations for Elm.",
     "license": "BSD-3-Clause",
     "version": "1.0.0",
