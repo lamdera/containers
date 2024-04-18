@@ -635,14 +635,15 @@ diff t1 t2 =
     foldWithHash (\h k _ t -> removeHelp 0 h k t) t1 t2
 
 
-{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it! -}
+{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it!
+-}
 encodeDict : (key -> Encoder) -> (value -> Encoder) -> Dict key value -> Encoder
 encodeDict encKey encValue d =
     Lamdera.Wire3.encodeList (Lamdera.Wire3.encodePair encKey encValue) (toList d)
 
 
-{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it! -}
+{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it!
+-}
 decodeDict : Decoder k -> Decoder value -> Decoder (Dict k value)
 decodeDict decKey decValue =
     Lamdera.Wire3.decodeList (Lamdera.Wire3.decodePair decKey decValue) |> D.map fromList
-
