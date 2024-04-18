@@ -53,7 +53,10 @@ module Hash.Set
 
 -}
 
+import Bytes.Decode as D exposing (Decoder)
+import Bytes.Encode as E exposing (Encoder)
 import Hash.Dict as Dict exposing (Dict)
+import Lamdera.Wire3
 
 
 {-| Represents a set of unique values. So `(Set Int)` is a set of integers and
@@ -179,3 +182,15 @@ partition p (Set dict) =
             Dict.partition (\k _ -> p k) dict
     in
         ( Set trues, Set falses )
+
+
+{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it! -}
+encodeHashSet : (value -> Encoder) -> Set value -> Encoder
+encodeHashSet encVal s =
+    Lamdera.Wire3.encodeList encVal (toList s)
+
+
+{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it! -}
+decodeHashSet : Decoder k -> Decoder (Set k)
+decodeHashSet decVal =
+    Lamdera.Wire3.decodeList decVal |> D.map fromList

@@ -42,8 +42,11 @@ module Hash.Dict exposing
 -}
 
 import Bitwise
+import Bytes.Decode as D exposing (Decoder)
+import Bytes.Encode as E exposing (Encoder)
 import Hash.FNV as FNV
 import Hash.JsArray as JsArray exposing (JsArray)
+import Lamdera.Wire3
 
 
 {-| A dictionary of keys and values. So a `(Dict String User)` is a dictionary
@@ -630,3 +633,16 @@ intersect t1 t2 =
 diff : Dict k v -> Dict k v2 -> Dict k v
 diff t1 t2 =
     foldWithHash (\h k _ t -> removeHelp 0 h k t) t1 t2
+
+
+{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it! -}
+encodeDict : (key -> Encoder) -> (value -> Encoder) -> Dict key value -> Encoder
+encodeDict encKey encValue d =
+    Lamdera.Wire3.encodeList (Lamdera.Wire3.encodePair encKey encValue) (toList d)
+
+
+{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it! -}
+decodeDict : Decoder k -> Decoder value -> Decoder (Dict k value)
+decodeDict decKey decValue =
+    Lamdera.Wire3.decodeList (Lamdera.Wire3.decodePair decKey decValue) |> D.map fromList
+
