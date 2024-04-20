@@ -1,9 +1,6 @@
 {
-    "scripts": {
-        "test": "elm-test --fuzz=1000"
-    },
-    "devDependencies": {
-        "elm-test": "^0.18.7"
-    },
-    "dependencies": {}
+  "dependencies": {
+    "elm-format": "^0.8.7",
+    "elm-test": "^0.19.1-revision12"
+  }
 }

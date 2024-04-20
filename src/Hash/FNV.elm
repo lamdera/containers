@@ -1,6 +1,6 @@
 module Hash.FNV exposing (hash)
 
-import Native.FNV
+import Elm.Kernel.FNV
 
 
 fnvOffset : Int
@@ -10,4 +10,4 @@ fnvOffset =
 
 hash : a -> Int
 hash =
-    Native.FNV.hash fnvOffset
+    Elm.Kernel.FNV.hash fnvOffset

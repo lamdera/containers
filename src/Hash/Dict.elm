@@ -44,7 +44,6 @@ module Hash.Dict exposing
 import Bitwise
 import Hash.FNV as FNV
 import Hash.JsArray as JsArray exposing (JsArray)
-import List.Extra as List
 
 
 {-| A dictionary of keys and values. So a `(Dict String User)` is a dictionary
@@ -174,7 +173,7 @@ dictionary.
 
 -}
 get : k -> Dict k v -> Maybe v
-get key (Dict bitmap nodes values) =
+get key (Dict bitmap nodes _) =
     getHelp 0 (FNV.hash key) key bitmap nodes
 
 
@@ -206,7 +205,7 @@ getHelp shift hash key bitmap nodes =
                 getHelp (shift + shiftStep) hash key subBitmap subNodes
 
             Collision _ vals ->
-                case List.find (\( _, k, _ ) -> k == key) vals of
+                case listFind (\( _, k, _ ) -> k == key) vals of
                     Just ( _, _, val ) ->
                         Just val
 
@@ -373,7 +372,7 @@ insertHelp shift hash key value bitmap nodes triplets =
                         keyFinder ( _, k, _ ) =
                             k == key
                     in
-                    case List.find keyFinder pairs of
+                    case listFind keyFinder pairs of
                         Just ( existingIdx, _, _ ) ->
                             let
                                 whenRemoved =
@@ -495,7 +494,7 @@ removeHelp shift hash key bitmap nodes triplets =
             Collision _ vals ->
                 let
                     maybeIdx =
-                        List.find (\( _, k, _ ) -> k == key) vals
+                        listFind (\( _, k, _ ) -> k == key) vals
                             |> Maybe.map (\( idx, _, _ ) -> idx)
 
                     newCollision =
@@ -623,8 +622,8 @@ foldl : (k -> v -> b -> b) -> b -> Dict k v -> b
 foldl fn acc (Dict _ _ triplets) =
     let
         helper : ( Int, k, v ) -> b -> b
-        helper ( _, key, value ) acc =
-            fn key value acc
+        helper ( _, key, value ) acc2 =
+            fn key value acc2
     in
     intDictFoldl helper acc triplets
 
@@ -636,8 +635,8 @@ foldr : (k -> v -> b -> b) -> b -> Dict k v -> b
 foldr fn acc (Dict _ _ triplets) =
     let
         helper : ( Int, k, v ) -> b -> b
-        helper ( _, key, value ) acc =
-            fn key value acc
+        helper ( _, key, value ) acc2 =
+            fn key value acc2
     in
     intDictFoldr helper acc triplets
 
@@ -1154,3 +1153,16 @@ intDictFoldr func baseCase dict =
                     JsArray.foldr helper acc subTree
     in
     JsArray.foldr helper (JsArray.foldr func baseCase dict.tail) dict.tree
+
+listFind : (a -> Bool) -> List a -> Maybe a
+listFind predicate list =
+    case list of
+        [] ->
+            Nothing
+
+        first :: rest ->
+            if predicate first then
+                Just first
+
+            else
+                listFind predicate rest

@@ -7,7 +7,6 @@ import Fuzz exposing (Fuzzer, int)
 import Hash.Dict as Dict exposing (Dict)
 import Hash.Set as Set
 import List
-import List.Extra as List
 import Maybe exposing (..)
 import Test exposing (..)
 
@@ -158,9 +157,9 @@ tests =
                     \() ->
                         Expect.equal [ 2, 4, 6, 8, 10 ]
                             (List.range 1 10
-                                |> List.indexedMap (,)
+                                |> List.indexedMap Tuple.pair
                                 |> Dict.fromList
-                                |> Dict.filter (\_ v -> v % 2 == 0)
+                                |> Dict.filter (\_ v -> modBy 2 v == 0)
                                 |> Dict.toList
                                 |> List.map Tuple.second
                             )
@@ -173,9 +172,9 @@ tests =
                     \() ->
                         Expect.equal ( [ 2, 4, 6, 8, 10 ], [ 1, 3, 5, 7, 9 ] )
                             (List.range 1 10
-                                |> List.indexedMap (,)
+                                |> List.indexedMap Tuple.pair
                                 |> Dict.fromList
-                                |> Dict.partition (\_ v -> v % 2 == 0)
+                                |> Dict.partition (\_ v -> modBy 2 v == 0)
                                 |> (\( a, b ) ->
                                         ( Dict.toList a |> List.map Tuple.second
                                         , Dict.toList b |> List.map Tuple.second
@@ -203,7 +202,7 @@ tests =
                             deduped =
                                 pairs
                                     |> List.map Tuple.first
-                                    |> List.unique
+                                    |> listUnique
                         in
                         pairs
                             |> Dict.fromList
@@ -232,10 +231,10 @@ tests =
                                 ]
                 , fuzz fuzzPairs "Filter works" <|
                     \pairs ->
-                        Dict.filter (\k _ -> k % 2 == 0) (Dict.fromList pairs)
+                        Dict.filter (\k _ -> modBy 2 k == 0) (Dict.fromList pairs)
                             |> Expect.all
                                 [ expectSynchronized
-                                , expectEqualDict (CoreImpl.filter (\k _ -> k % 2 == 0) (CoreImpl.fromList pairs))
+                                , expectEqualDict (CoreImpl.filter (\k _ -> modBy 2 k == 0) (CoreImpl.fromList pairs))
                                 ]
                 , fuzz2 fuzzPairs fuzzPairs "Union works" <|
                     \pairs pairs2 ->
@@ -292,8 +291,7 @@ tests =
 
 fuzzPairs : Fuzzer (List ( Int, Int ))
 fuzzPairs =
-    ( int, int )
-        |> Fuzz.tuple
+    Fuzz.map2 Tuple.pair int int
         |> Fuzz.list
 
 
@@ -331,3 +329,26 @@ expectSynchronized hash =
         CoreImpl.empty
         hash
         |> (\toCompare -> expectEqualDict toCompare hash)
+
+
+listUnique : List a -> List a
+listUnique list =
+    uniqueHelp identity [] list []
+
+
+uniqueHelp : (a -> b) -> List b -> List a -> List a -> List a
+uniqueHelp f existing remaining accumulator =
+    case remaining of
+        [] ->
+            List.reverse accumulator
+
+        first :: rest ->
+            let
+                computedFirst =
+                    f first
+            in
+            if List.member computedFirst existing then
+                uniqueHelp f existing rest accumulator
+
+            else
+                uniqueHelp f (computedFirst :: existing) rest (first :: accumulator)
