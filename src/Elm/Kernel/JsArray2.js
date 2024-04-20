@@ -2,17 +2,17 @@
 import Elm.Kernel.Utils exposing (Tuple2)
 */
 
-var _JsArray_empty = [];
+var _JsArray2_empty = [];
 
-var _JsArray_singleton = function(val) {
+var _JsArray2_singleton = function(val) {
     return [val];
 };
 
-var _JsArray_length = function(arr) {
+var _JsArray2_length = function(arr) {
     return arr.length;
 };
 
-var _JsArray_initialize = F3(function(size, offset, f) {
+var _JsArray2_initialize = F3(function(size, offset, f) {
     var result = new Array(size);
 
     for (var i = 0; i < size; i++) {
@@ -22,7 +22,7 @@ var _JsArray_initialize = F3(function(size, offset, f) {
     return result;
 });
 
-var _JsArray_initializeFromList = F2(function(max, ls) {
+var _JsArray2_initializeFromList = F2(function(max, ls) {
     var result = new Array(max);
 
     for (var i = 0; i < max && ls.ctor !== '[]'; i++) {
@@ -34,11 +34,11 @@ var _JsArray_initializeFromList = F2(function(max, ls) {
     return __Utils_Tuple2(result, ls);
 });
 
-var _JsArray_unsafeGet = F2(function(idx, arr) {
+var _JsArray2_unsafeGet = F2(function(idx, arr) {
     return arr[idx];
 });
 
-var _JsArray_unsafeSet = F3(function(idx, val, arr) {
+var _JsArray2_unsafeSet = F3(function(idx, val, arr) {
     var length = arr.length;
     var result = new Array(length);
 
@@ -50,7 +50,7 @@ var _JsArray_unsafeSet = F3(function(idx, val, arr) {
     return result;
 });
 
-var _JsArray_unsafeInsert = F3(function(idx, val, arr) {
+var _JsArray2_unsafeInsert = F3(function(idx, val, arr) {
     var length = arr.length;
     var result = new Array(length + 1);
 
@@ -67,7 +67,7 @@ var _JsArray_unsafeInsert = F3(function(idx, val, arr) {
     return result;
 });
 
-var _JsArray_removeIndex = F2(function(idx, arr) {
+var _JsArray2_removeIndex = F2(function(idx, arr) {
     var length = arr.length;
     var result = new Array(length - 1);
 
@@ -82,7 +82,7 @@ var _JsArray_removeIndex = F2(function(idx, arr) {
     return result;
 });
 
-var _JsArray_push = F2(function(val, arr) {
+var _JsArray2_push = F2(function(val, arr) {
     var length = arr.length;
     var result = new Array(length + 1);
 
@@ -94,7 +94,7 @@ var _JsArray_push = F2(function(val, arr) {
     return result;
 });
 
-var _JsArray_foldl = F3(function(f, acc, arr) {
+var _JsArray2_foldl = F3(function(f, acc, arr) {
     var length = arr.length;
 
     for (var i = 0; i < length; i++) {
@@ -104,7 +104,7 @@ var _JsArray_foldl = F3(function(f, acc, arr) {
     return acc;
 });
 
-var _JsArray_foldr = F3(function(f, acc, arr) {
+var _JsArray2_foldr = F3(function(f, acc, arr) {
     for (var i = arr.length - 1; i >= 0; i--) {
         acc = A2(f, arr[i], acc);
     }
@@ -112,7 +112,7 @@ var _JsArray_foldr = F3(function(f, acc, arr) {
     return acc;
 });
 
-var _JsArray_map = F2(function(f, arr) {
+var _JsArray2_map = F2(function(f, arr) {
     var length = arr.length;
     var result = new Array(length);
 
@@ -123,7 +123,7 @@ var _JsArray_map = F2(function(f, arr) {
     return result;
 });
 
-var _JsArray_indexedMap = F3(function(f, offset, arr) {
+var _JsArray2_indexedMap = F3(function(f, offset, arr) {
     var length = arr.length;
     var result = new Array(length);
 
@@ -134,11 +134,11 @@ var _JsArray_indexedMap = F3(function(f, offset, arr) {
     return result;
 });
 
-var _JsArray_slice = F3(function(from, to, arr) {
+var _JsArray2_slice = F3(function(from, to, arr) {
     return arr.slice(from, to);
 });
 
-var _JsArray_appendN = F3(function(n, dest, source) {
+var _JsArray2_appendN = F3(function(n, dest, source) {
     var destLen = dest.length;
     var itemsToCopy = n - destLen;
 
