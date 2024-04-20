@@ -1,8 +1,13 @@
 module Hash.FNV exposing (hash)
 
-import Elm.Kernel.FNV
+import Native.FNV
+
+
+fnvOffset : Int
+fnvOffset =
+    2166136261
 
 
 hash : a -> Int
 hash =
-    Elm.Kernel.FNV.hash
+    Native.FNV.hash fnvOffset

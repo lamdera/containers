@@ -1,10 +1,10 @@
 module Hash.Dict exposing
     ( Dict
-    , empty, singleton, insert, update, updateIfExists, remove
+    , empty, singleton, insert, update, remove
     , get, isEmpty, member, size
     , union, intersect, diff
     , toList, fromList, keys, values
-    , fold, map, filter, filterMap, partition
+    , foldl, foldr, map, filter, partition
     )
 
 {-| A dictionary mapping unique keys to values.
@@ -17,7 +17,7 @@ module Hash.Dict exposing
 
 # Build
 
-@docs empty, singleton, insert, update, updateIfExists, remove
+@docs empty, singleton, insert, update, remove
 
 
 # Query
@@ -37,38 +37,39 @@ module Hash.Dict exposing
 
 # Transform
 
-@docs fold, map, filter, filterMap, partition
+@docs foldl, foldr, map, filter, partition
 
 -}
 
 import Bitwise
-import Bytes.Decode as D exposing (Decoder)
-import Bytes.Encode as E exposing (Encoder)
 import Hash.FNV as FNV
 import Hash.JsArray as JsArray exposing (JsArray)
-import Lamdera.Wire3
+import List.Extra as List
 
 
 {-| A dictionary of keys and values. So a `(Dict String User)` is a dictionary
 that lets you look up a `String` (such as user names) and find the associated
 `User`.
+
+This implementation differs from the one in core in that keys don't have to
+be comparable, and that operations like foldl and foldr iterates the key-value
+pairs in insertion order instead of sorted order.
+
 -}
 type
     Dict k v
-    -- The first argument is a bitmap (32 bits). If a bit is set, it means
-    -- that a value is stored at that index (NodeArray is 32 in size).
-    -- NodeArray contains Nodes (look below).
+    -- Bitmap (Int): The tree is compressed (empty nodes are not stored), so
+    -- this bitmap stores what index each node is actually stored at.
     --
-    -- A Dict is essentially an Array. We use a hash function to convert the
-    -- key to an Int, which we use as an index.
-    -- Since the hash function doesn't return sequential values, we use a
-    -- bitmap to compress the NodeArray. The actual index of a key depends
-    -- on how many bits are set before the actual index in the bitmap.
+    -- Tree (NodeArray k v): An array of nodes. "Empty" nodes are not
+    -- stored in the array, so we need a bitmap to figure out which
+    -- index each node is actually stored at.
     --
-    -- Example: The hash for key '0' tells us that the element should be
-    -- stored at index 9. In the bitmap, there are no set bits (ones) before
-    -- index 9, so we actually store the key-value pair at index 0.
-    = Dict Int (NodeArray k v)
+    -- Int Dict: This datastructure stores each key-value pair in
+    -- insertion order. Whenever we iterate over the hash-map, we actually
+    -- iterate over this data structure. You can find the Int Dict impl.
+    -- at the bottom of this file.
+    = Dict Int (NodeArray k v) (IntDict k v)
 
 
 type alias NodeArray k v =
@@ -77,18 +78,23 @@ type alias NodeArray k v =
 
 type
     Node k v
-    -- In addition to Leaf's and SubTree's (read the code for Array for more info)
-    -- we also have to consider Collisions. A hash function can potentially return
-    -- the same hash for two different keys. In that case we store the key-value
-    -- pairs in a list, and need to run an equality check when retrieving, or removing,
-    -- said key. If we use a hash-function which causes a lot of collisions, our Dict
-    -- essentially degrades into a List.
-    = Leaf Int k v
-    | SubTree (Dict k v)
-    | Collision Int (List ( k, v ))
+    -- Index into Int Dict structure, the key hash, key and value.
+    = Leaf Int Int k v
+      -- Bitmap for the NodeArray and the actual NodeArray
+    | SubTree Int (NodeArray k v)
+      -- Hashing different keys can give us the same result. We call this a collision.
+      -- The hash for each triplet, and a list of (Int Dict index, key and value)
+    | Collision Int (List ( Int, k, v ))
 
 
-{-| How many bits represents the branching factor (32). Read Array documentation for
+{-| The size of each node array. Read Array documentation for more info.
+-}
+branchFactor : Int
+branchFactor =
+    32
+
+
+{-| How many bits represents the branching factor. Read Array documentation for
 more info.
 -}
 shiftStep : Int
@@ -104,11 +110,32 @@ bitMask =
     Bitwise.shiftRightZfBy (32 - shiftStep) 0xFFFFFFFF
 
 
-{-| Create an empty dictionary.
+{-| When used in a bitwise and, clears the first `shiftStep` bits from an int.
+-}
+invertedBitMask : Int
+invertedBitMask =
+    Bitwise.complement bitMask
+
+
+{-| Every time we insert something into `Int Dict` we store the key-value at
+the previous index + 1. Removing a key-value pair doesn't change this, so at
+some point we will run out of indices. When we do, we need to rebuild the
+structure an try again.
+
+Since we use bitwise operations on indices, the rebuild threshold has to be
+the largest int value for a 32-bit int.
+
+-}
+rebuildThreshold : Int
+rebuildThreshold =
+    0xFFFFFFFF
+
+
+{-| The empty dictionary.
 -}
 empty : Dict k v
 empty =
-    Dict 0 JsArray.empty
+    Dict 0 JsArray.empty intDictEmpty
 
 
 {-| Create a dictionary with one key-value pair.
@@ -124,15 +151,15 @@ singleton key val =
 
 -}
 isEmpty : Dict k v -> Bool
-isEmpty (Dict bitmap _) =
+isEmpty (Dict bitmap _ _) =
     bitmap == 0
 
 
 {-| Determine the number of key-value pairs in the dictionary.
 -}
 size : Dict k v -> Int
-size dict =
-    fold (\_ _ acc -> acc + 1) 0 dict
+size (Dict _ _ triplets) =
+    triplets.size
 
 
 {-| Get the value associated with a key. If the key is not found, return
@@ -147,59 +174,61 @@ dictionary.
 
 -}
 get : k -> Dict k v -> Maybe v
-get key dict =
-    getHelp 0 (FNV.hash key) key dict
+get key (Dict bitmap nodes values) =
+    getHelp 0 (FNV.hash key) key bitmap nodes
 
 
-getHelp : Int -> Int -> k -> Dict k v -> Maybe v
-getHelp shift hash key (Dict bitmap nodes) =
+getHelp : Int -> Int -> k -> Int -> NodeArray k v -> Maybe v
+getHelp shift hash key bitmap nodes =
     let
-        idx =
+        index =
+            -- Read `shift + shiftStep` bits from the hash as a number
+            -- of its own.
             Bitwise.and bitMask (Bitwise.shiftRightZfBy shift hash)
 
         mask =
-            Bitwise.shiftLeftBy idx 0x01
-
-        hasValue =
-            Bitwise.and bitmap mask == mask
+            -- Create a mask, a number where a specific bit is set. We
+            -- can use this to figure out what the actual position of
+            -- a node is in the tree.
+            Bitwise.shiftLeftBy index 1
     in
-    if hasValue then
-        case JsArray.unsafeGet (compressedIndex idx bitmap) nodes of
-            Leaf _ eKey value ->
+    -- is the bit at `index` set?
+    if Bitwise.and bitmap mask == mask then
+        case JsArray.unsafeGet (compressedIndex index bitmap) nodes of
+            Leaf _ eIdx eKey eVal ->
                 if key == eKey then
-                    Just value
+                    Just eVal
 
                 else
                     Nothing
 
-            SubTree subNodes ->
-                getHelp (shift + shiftStep) hash key subNodes
+            SubTree subBitmap subNodes ->
+                getHelp (shift + shiftStep) hash key subBitmap subNodes
 
             Collision _ vals ->
-                Maybe.map Tuple.second
-                    (listFind (\( k, _ ) -> k == key) vals)
+                case List.find (\( _, k, _ ) -> k == key) vals of
+                    Just ( _, _, val ) ->
+                        Just val
+
+                    Nothing ->
+                        Nothing
 
     else
         Nothing
-
-
-listFind : (a -> Bool) -> List a -> Maybe a
-listFind pred vals =
-    List.head (List.filter pred vals)
 
 
 {-| Given an index and a bitmap, return the compressed index of a Node
 in a NodeArray.
 -}
 compressedIndex : Int -> Int -> Int
-compressedIndex idx bitmap =
+compressedIndex index bitmap =
     -- The NodeArray at each level of a tree can be, at most, 32 in size.
-    -- A bitmap can contain 32 bits. 1 bits represents a stored value.
+    -- A bitmap can contain 32 bits. 1 bit represents a stored value.
     -- The compressed index is the number of elements to the left of the
     -- idx bit.
     let
         relevantBits =
-            Bitwise.shiftLeftBy 1 (Bitwise.shiftLeftBy (31 - idx) bitmap)
+            Bitwise.shiftLeftBy 1 (Bitwise.shiftLeftBy (31 - index) bitmap)
 
         -- Count the number of set bits (1 bits) in an Int.
         -- See: <https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel>
@@ -215,8 +244,8 @@ compressedIndex idx bitmap =
 {-| Determine if a key is in a dictionary.
 -}
 member : k -> Dict k v -> Bool
-member key dict =
-    case get key dict of
+member key (Dict bitmap nodes _) =
+    case getHelp 0 (FNV.hash key) key bitmap nodes of
         Just _ ->
             True
 
@@ -229,178 +258,286 @@ a collision.
 -}
 insert : k -> v -> Dict k v -> Dict k v
 insert key value dict =
-    insertHelp 0 (FNV.hash key) key value dict
-
-
-insertHelp : Int -> Int -> k -> v -> Dict k v -> Dict k v
-insertHelp shift hash key val ((Dict bitmap nodes) as dict) =
     let
-        idx =
+        (Dict bitmap nodes triplets) =
+            rebuildOnOverflow dict
+    in
+    insertHelp 0 (FNV.hash key) key value bitmap nodes triplets
+
+
+{-| At some point we will run out of order indices, so we'll have to compress
+the int dict by rebuilding the it
+-}
+rebuildOnOverflow : Dict k v -> Dict k v
+rebuildOnOverflow ((Dict _ _ rootTriplets) as dict) =
+    if rootTriplets.size >= rebuildThreshold then
+        let
+            helper : ( Int, k, v ) -> Dict k v -> Dict k v
+            helper ( hash, key, value ) (Dict bitmap nodes triplets) =
+                insertHelp 0 hash key value bitmap nodes triplets
+        in
+        intDictFoldl helper empty rootTriplets
+
+    else
+        dict
+
+
+insertHelp :
+    Int
+    -> Int
+    -> k
+    -> v
+    -> Int
+    -> NodeArray k v
+    -> IntDict k v
+    -> Dict k v
+insertHelp shift hash key value bitmap nodes triplets =
+    let
+        uncompressedIdx =
             Bitwise.and bitMask (Bitwise.shiftRightZfBy shift hash)
 
         comIdx =
-            compressedIndex idx bitmap
+            compressedIndex uncompressedIdx bitmap
 
         newShift =
             shift + shiftStep
 
         mask =
-            Bitwise.shiftLeftBy idx 0x01
+            Bitwise.shiftLeftBy uncompressedIdx 1
 
         hasValue =
             Bitwise.and bitmap mask == mask
     in
     if hasValue then
         case JsArray.unsafeGet comIdx nodes of
-            Leaf xHash xKey xVal ->
+            (Leaf xHash xIdx xKey xVal) as node ->
                 if xHash == hash then
                     if xKey == key then
-                        setByIndex mask comIdx (Leaf hash key val) dict
+                        Dict
+                            bitmap
+                            (JsArray.unsafeSet comIdx (Leaf xHash xIdx xKey value) nodes)
+                            (intDictSet xIdx hash key value triplets)
 
                     else
                         let
                             element =
-                                Collision hash [ ( key, val ), ( xKey, xVal ) ]
+                                Collision hash
+                                    [ ( triplets.nextIndex, key, value )
+                                    , ( xIdx, xKey, xVal )
+                                    ]
                         in
-                        setByIndex mask comIdx element dict
+                        Dict
+                            bitmap
+                            (JsArray.unsafeSet comIdx element nodes)
+                            (intDictPush hash key value triplets)
 
                 else
                     let
-                        subNodes =
-                            SubTree
-                                (insertHelp
-                                    newShift
-                                    hash
-                                    key
-                                    val
-                                    (insertHelp newShift xHash xKey xVal empty)
-                                )
-                    in
-                    setByIndex mask comIdx subNodes dict
+                        subIdx =
+                            Bitwise.and bitMask (Bitwise.shiftRightZfBy newShift xHash)
 
-            SubTree subNodes ->
+                        (Dict secondBitmap secondNodes newTriplets) =
+                            insertHelp
+                                newShift
+                                hash
+                                key
+                                value
+                                (Bitwise.shiftLeftBy subIdx 1)
+                                (JsArray.singleton node)
+                                triplets
+
+                        subTree =
+                            SubTree secondBitmap secondNodes
+                    in
+                    Dict
+                        bitmap
+                        (JsArray.unsafeSet comIdx subTree nodes)
+                        newTriplets
+
+            SubTree subBitmap subNodes ->
                 let
+                    (Dict newSubBitmap newSubNodes newTriplets) =
+                        insertHelp newShift hash key value subBitmap subNodes triplets
+
                     newSub =
-                        SubTree (insertHelp newShift hash key val subNodes)
+                        SubTree newSubBitmap newSubNodes
                 in
-                setByIndex mask comIdx newSub dict
+                Dict
+                    bitmap
+                    (JsArray.unsafeSet comIdx newSub nodes)
+                    newTriplets
 
             (Collision xHash pairs) as currValue ->
                 if xHash == hash then
                     let
-                        newPairs =
-                            ( key, val ) :: List.filter (\( k, _ ) -> k /= key) pairs
+                        keyFinder ( _, k, _ ) =
+                            k == key
                     in
-                    setByIndex mask comIdx (Collision hash newPairs) dict
+                    case List.find keyFinder pairs of
+                        Just ( existingIdx, _, _ ) ->
+                            let
+                                whenRemoved =
+                                    List.filter keyFinder pairs
+
+                                updated =
+                                    ( existingIdx, key, value ) :: whenRemoved
+                            in
+                            Dict
+                                bitmap
+                                (JsArray.unsafeSet comIdx (Collision xHash updated) nodes)
+                                (intDictSet existingIdx hash key value triplets)
+
+                        Nothing ->
+                            let
+                                updated =
+                                    ( triplets.nextIndex, key, value ) :: pairs
+                            in
+                            Dict
+                                bitmap
+                                (JsArray.unsafeSet comIdx (Collision hash updated) nodes)
+                                (intDictPush hash key value triplets)
 
                 else
                     let
                         collisionPos =
-                            Bitwise.and bitMask (Bitwise.shiftRightZfBy shift hash)
-
-                        collisionNodePos =
-                            compressedIndex collisionPos 0
+                            Bitwise.and bitMask (Bitwise.shiftRightZfBy newShift hash)
 
                         collisionMask =
-                            Bitwise.shiftLeftBy collisionPos 0x01
+                            Bitwise.shiftLeftBy collisionPos 1
 
-                        newNodes =
-                            SubTree
-                                (insertHelp
-                                    newShift
-                                    hash
-                                    key
-                                    val
-                                    (setByIndex collisionMask collisionNodePos currValue empty)
-                                )
+                        (Dict subBitmap subNodes subTriplets) =
+                            insertHelp
+                                newShift
+                                hash
+                                key
+                                value
+                                (Bitwise.shiftLeftBy collisionPos 1)
+                                (JsArray.singleton currValue)
+                                triplets
                     in
-                    setByIndex mask comIdx newNodes dict
+                    Dict
+                        bitmap
+                        (JsArray.unsafeSet comIdx (SubTree subBitmap subNodes) nodes)
+                        subTriplets
 
     else
-        setByIndex mask comIdx (Leaf hash key val) dict
-
-
-{-| Insert a Node at the given index, returning an updated Dict.
--}
-setByIndex : Int -> Int -> Node k v -> Dict k v -> Dict k v
-setByIndex mask comIdx val (Dict bitmap nodes) =
-    let
-        alteredBitmap =
-            Bitwise.or bitmap mask
-
-        shouldReplace =
-            Bitwise.and bitmap mask == mask
-
-        newNodeArray =
-            if shouldReplace then
-                JsArray.unsafeSet comIdx val nodes
-
-            else
-                JsArray.unsafeInsert comIdx val nodes
-    in
-    Dict alteredBitmap newNodeArray
+        Dict
+            (Bitwise.or bitmap mask)
+            (JsArray.unsafeInsert comIdx (Leaf hash triplets.nextIndex key value) nodes)
+            (intDictPush hash key value triplets)
 
 
 {-| Remove a key-value pair from a dictionary. If the key is not found,
 no changes are made.
 -}
 remove : k -> Dict k v -> Dict k v
-remove key dict =
-    removeHelp 0 (FNV.hash key) key dict
+remove key (Dict bitmap nodes triplets) =
+    removeHelp 0 (FNV.hash key) key bitmap nodes triplets
 
 
-removeHelp : Int -> Int -> k -> Dict k v -> Dict k v
-removeHelp shift hash key ((Dict bitmap nodes) as dict) =
+removeHelp :
+    Int
+    -> Int
+    -> k
+    -> Int
+    -> NodeArray k v
+    -> IntDict k v
+    -> Dict k v
+removeHelp shift hash key bitmap nodes triplets =
     let
-        idx =
+        uncompIdx =
             Bitwise.and bitMask (Bitwise.shiftRightZfBy shift hash)
 
-        comIdx =
-            compressedIndex idx bitmap
+        compIdx =
+            compressedIndex uncompIdx bitmap
 
         mask =
-            Bitwise.shiftLeftBy idx 0x01
+            Bitwise.shiftLeftBy uncompIdx 1
 
         hasValue =
             Bitwise.and bitmap mask == mask
     in
     if hasValue then
-        case JsArray.unsafeGet comIdx nodes of
-            Leaf _ eKey _ ->
+        case JsArray.unsafeGet compIdx nodes of
+            Leaf _ eIdx eKey eVal ->
                 if eKey == key then
                     Dict
                         (Bitwise.xor bitmap mask)
-                        (JsArray.removeIndex comIdx nodes)
+                        (JsArray.removeIndex compIdx nodes)
+                        (intDictRemove eIdx triplets)
 
                 else
-                    dict
+                    Dict bitmap nodes triplets
 
-            SubTree subDict ->
+            SubTree subBitmap subNodes ->
                 let
-                    newSub =
-                        SubTree (removeHelp (shift + shiftStep) hash key subDict)
+                    (Dict newSubBitmap newSubNodes newTriplets) =
+                        removeHelp
+                            (shift + shiftStep)
+                            hash
+                            key
+                            subBitmap
+                            subNodes
+                            triplets
                 in
-                setByIndex mask comIdx newSub dict
+                if newSubBitmap == 0 then
+                    Dict
+                        (Bitwise.xor bitmap mask)
+                        (JsArray.removeIndex compIdx nodes)
+                        newTriplets
+
+                else
+                    Dict
+                        bitmap
+                        (JsArray.unsafeSet compIdx (SubTree newSubBitmap newSubNodes) nodes)
+                        newTriplets
 
             Collision _ vals ->
                 let
+                    maybeIdx =
+                        List.find (\( _, k, _ ) -> k == key) vals
+                            |> Maybe.map (\( idx, _, _ ) -> idx)
+
                     newCollision =
-                        List.filter (\( k, _ ) -> k /= key) vals
+                        case maybeIdx of
+                            Just removeIdx ->
+                                List.filter (\( _, k, _ ) -> k /= key) vals
+
+                            Nothing ->
+                                vals
+
+                    newTriplets =
+                        case maybeIdx of
+                            Just removeIdx ->
+                                intDictRemove removeIdx triplets
+
+                            Nothing ->
+                                triplets
                 in
                 case newCollision of
                     [] ->
                         Dict
                             (Bitwise.xor bitmap mask)
-                            (JsArray.removeIndex comIdx nodes)
+                            (JsArray.removeIndex compIdx nodes)
+                            newTriplets
 
-                    ( eKey, eVal ) :: [] ->
-                        setByIndex mask comIdx (Leaf hash eKey eVal) dict
+                    ( eIdx, eKey, eVal ) :: [] ->
+                        Dict
+                            bitmap
+                            (JsArray.unsafeSet compIdx (Leaf hash eIdx eKey eVal) nodes)
+                            newTriplets
 
                     _ ->
-                        setByIndex mask comIdx (Collision hash newCollision) dict
+                        Dict
+                            bitmap
+                            (JsArray.unsafeSet compIdx (Collision hash newCollision) nodes)
+                            newTriplets
 
     else
-        dict
+        Dict
+            bitmap
+            nodes
+            triplets
 
 
 {-| Update the value of a dictionary for a specific key with a given function.
@@ -409,25 +546,17 @@ determines if the value is updated or removed. New key-value pairs can be
 inserted too.
 -}
 update : k -> (Maybe v -> Maybe v) -> Dict k v -> Dict k v
-update key fn dict =
+update key fn ((Dict bitmap nodes triplets) as dict) =
     let
         hash =
             FNV.hash key
     in
-    case fn (getHelp 0 hash key dict) of
+    case fn (getHelp 0 hash key bitmap nodes) of
         Nothing ->
-            removeHelp 0 hash key dict
+            removeHelp 0 hash key bitmap nodes triplets
 
-        Just val ->
-            insertHelp 0 hash key val dict
-
-
-{-| Update the value of a dictionary for a specific key with a given function.
-If the key doesn't exist then the original dict is returned.
--}
-updateIfExists : k -> (v -> v) -> Dict k v -> Dict k v
-updateIfExists key fn dict =
-    update key (Maybe.map fn) dict
+        Just value ->
+            insertHelp 0 hash key value bitmap nodes triplets
 
 
 
@@ -444,140 +573,132 @@ fromList list =
 {-| Convert a dictionary into an association list of key-value pairs.
 -}
 toList : Dict k v -> List ( k, v )
-toList dict =
-    fold (\k v acc -> ( k, v ) :: acc) [] dict
+toList (Dict _ _ triplets) =
+    let
+        helper : ( Int, k, v ) -> List ( k, v ) -> List ( k, v )
+        helper ( _, key, value ) acc =
+            ( key, value ) :: acc
+    in
+    intDictFoldr helper [] triplets
 
 
 {-| Get all of the keys in a dictionary.
 
-    keys (fromList [ ( 0, "Alice" ), ( 1, "Bob" ) ]) == [ 0, 1 ]
+       keys (fromList [(0,"Alice"),(1,"Bob")]) == [0,1]
 
 -}
 keys : Dict k v -> List k
-keys dict =
-    fold (\k _ acc -> k :: acc) [] dict
+keys (Dict _ _ triplets) =
+    let
+        helper : ( Int, k, v ) -> List k -> List k
+        helper ( _, key, _ ) acc =
+            key :: acc
+    in
+    intDictFoldr helper [] triplets
 
 
 {-| Get all of the values in a dictionary as a List.
 
-    values (fromList [ ( 0, "Alice" ), ( 1, "Bob" ) ]) == [ "Alice", "Bob" ]
+       values (fromList [(0,"Alice"),(1,"Bob")]) == ["Alice", "Bob"]
 
 -}
 values : Dict k v -> List v
-values dict =
-    fold (\_ v acc -> v :: acc) [] dict
+values (Dict _ _ triplets) =
+    let
+        helper : ( Int, k, v ) -> List v -> List v
+        helper ( _, _, value ) acc =
+            value :: acc
+    in
+    intDictFoldr helper [] triplets
 
 
 
 -- TRANSFORM
 
 
-{-| Fold over the key-value pairs in a dictionary.
+{-| Fold over the key-value pairs in a dictionary in the order the key was
+first inserted.
 -}
-fold : (k -> v -> b -> b) -> b -> Dict k v -> b
-fold fn init (Dict _ nodes) =
+foldl : (k -> v -> b -> b) -> b -> Dict k v -> b
+foldl fn acc (Dict _ _ triplets) =
     let
-        helper : Node k v -> b -> b
-        helper node acc =
-            case node of
-                Leaf _ key val ->
-                    fn key val acc
-
-                SubTree subNodes ->
-                    fold fn acc subNodes
-
-                Collision _ vals ->
-                    let
-                        colFold : ( k, v ) -> b -> b
-                        colFold ( k, v ) colAcc =
-                            fn k v colAcc
-                    in
-                    List.foldl colFold acc vals
+        helper : ( Int, k, v ) -> b -> b
+        helper ( _, key, value ) acc =
+            fn key value acc
     in
-    JsArray.foldl helper init nodes
+    intDictFoldl helper acc triplets
 
 
-{-| Same as fold, but include the hash value when calling the fold-fn.
-Allows avoiding rehashing keys when modifying a Dict. Internal use only.
+{-| Fold over the key-value pairs in a dictionary in the reverse order the key
+was first inserted.
 -}
-foldWithHash : (Int -> k -> v -> b -> b) -> b -> Dict k v -> b
-foldWithHash fn init (Dict _ nodes) =
+foldr : (k -> v -> b -> b) -> b -> Dict k v -> b
+foldr fn acc (Dict _ _ triplets) =
     let
-        helper : Node k v -> b -> b
-        helper node acc =
-            case node of
-                Leaf hash key val ->
-                    fn hash key val acc
-
-                SubTree subNodes ->
-                    foldWithHash fn acc subNodes
-
-                Collision hash vals ->
-                    let
-                        colFold : ( k, v ) -> b -> b
-                        colFold ( k, v ) colAcc =
-                            fn hash k v colAcc
-                    in
-                    List.foldl colFold acc vals
+        helper : ( Int, k, v ) -> b -> b
+        helper ( _, key, value ) acc =
+            fn key value acc
     in
-    JsArray.foldl helper init nodes
+    intDictFoldr helper acc triplets
 
 
 {-| Apply a function to all values in a dictionary.
 -}
 map : (k -> a -> b) -> Dict k a -> Dict k b
-map fn (Dict bitmap nodes) =
+map fn (Dict rootBitmap rootNodes rootTriplets) =
     let
-        helper : Node k a -> Node k b
-        helper node =
+        valueHelper : ( Int, k, a ) -> ( Int, k, b )
+        valueHelper ( i, k, v ) =
+            ( i, k, fn k v )
+
+        dictHelper : Node k a -> Node k b
+        dictHelper node =
             case node of
-                Leaf hash key val ->
-                    Leaf hash key (fn key val)
+                Leaf idx h k v ->
+                    Leaf idx h k <| fn k v
 
-                SubTree subDict ->
-                    SubTree (map fn subDict)
+                SubTree bitmap nodes ->
+                    SubTree bitmap <| JsArray.map dictHelper nodes
 
-                Collision hash vals ->
-                    let
-                        colHelper ( k, v ) =
-                            ( k, fn k v )
-                    in
-                    Collision hash (List.map colHelper vals)
+                Collision h triplets ->
+                    Collision h <| List.map valueHelper triplets
+
+        intDictHelper : IntDictNode k a -> IntDictNode k b
+        intDictHelper node =
+            case node of
+                IntLeaves bitmap leaves ->
+                    IntLeaves bitmap <| JsArray.map valueHelper leaves
+
+                IntSubTree bitmap subTree ->
+                    IntSubTree bitmap <| JsArray.map intDictHelper subTree
     in
-    Dict bitmap (JsArray.map helper nodes)
+    Dict
+        rootBitmap
+        (JsArray.map dictHelper rootNodes)
+        { nextIndex = rootTriplets.nextIndex
+        , size = rootTriplets.size
+        , startShift = rootTriplets.startShift
+        , tree = JsArray.map intDictHelper rootTriplets.tree
+        , treeBitmap = rootTriplets.treeBitmap
+        , tail = JsArray.map valueHelper rootTriplets.tail
+        , tailBitmap = rootTriplets.tailBitmap
+        }
 
 
 {-| Keep a key-value pair when it satisfies a predicate.
 -}
 filter : (k -> v -> Bool) -> Dict k v -> Dict k v
-filter predicate dict =
+filter predicate (Dict _ _ rootTriplets) =
     let
-        helper : Int -> k -> v -> Dict k v -> Dict k v
-        helper hash key value acc =
+        helper : ( Int, k, v ) -> Dict k v -> Dict k v
+        helper ( hash, key, value ) ((Dict bitmap nodes triplets) as dict) =
             if predicate key value then
-                insertHelp 0 hash key value acc
+                insertHelp 0 hash key value bitmap nodes triplets
 
             else
-                acc
+                dict
     in
-    foldWithHash helper empty dict
-
-
-{-| Filter out certain key-value pairs while also mapping over the values.
--}
-filterMap : (k -> v -> Maybe v2) -> Dict k v -> Dict k v2
-filterMap mapFunc dict =
-    toList dict
-        |> List.filterMap
-            (\( k, v ) ->
-                case mapFunc k v of
-                    Just v2 ->
-                        Just ( k, v2 )
-
-                    Nothing ->
-                        Nothing
-            )
-        |> fromList
+    intDictFoldl helper empty rootTriplets
 
 
 {-| Partition a dictionary according to a predicate. The first dictionary
@@ -585,17 +706,24 @@ contains all key-value pairs which satisfy the predicate, and the second
 contains the rest.
 -}
 partition : (k -> v -> Bool) -> Dict k v -> ( Dict k v, Dict k v )
-partition predicate dict =
+partition predicate (Dict _ _ rootTriplets) =
     let
-        helper : Int -> k -> v -> ( Dict k v, Dict k v ) -> ( Dict k v, Dict k v )
-        helper hash key value ( t1, t2 ) =
+        helper : ( Int, k, v ) -> ( Dict k v, Dict k v ) -> ( Dict k v, Dict k v )
+        helper ( hash, key, value ) ( t1, t2 ) =
+            let
+                (Dict bitmap1 nodes1 triplets1) =
+                    t1
+
+                (Dict bitmap2 nodes2 triplets2) =
+                    t2
+            in
             if predicate key value then
-                ( insertHelp 0 hash key value t1, t2 )
+                ( insertHelp 0 hash key value bitmap1 nodes1 triplets1, t2 )
 
             else
-                ( t1, insertHelp 0 hash key value t2 )
+                ( t1, insertHelp 0 hash key value bitmap2 nodes2 triplets2 )
     in
-    foldWithHash helper ( empty, empty ) dict
+    intDictFoldl helper ( empty, empty ) rootTriplets
 
 
 
@@ -606,44 +734,423 @@ partition predicate dict =
 to the first dictionary.
 -}
 union : Dict k v -> Dict k v -> Dict k v
-union t1 t2 =
-    foldWithHash (\h k v t -> insertHelp 0 h k v t) t2 t1
+union (Dict _ _ t1Triplets) ((Dict _ _ t2Triplets) as t2) =
+    let
+        unionSize =
+            t1Triplets.size + t2Triplets.size
+
+        init =
+            if unionSize >= rebuildThreshold then
+                intDictFoldl helper empty t2Triplets
+
+            else
+                t2
+
+        helper : ( Int, k, v ) -> Dict k v -> Dict k v
+        helper ( hash, key, value ) (Dict bitmap nodes triplets) =
+            insertHelp 0 hash key value bitmap nodes triplets
+    in
+    intDictFoldl helper init t1Triplets
 
 
 {-| Keep a key-value pair when its key appears in the second Dictionary.
 Preference is given to values in the first Dictionary.
 -}
-intersect : Dict k v -> Dict k v2 -> Dict k v
-intersect t1 t2 =
+intersect : Dict k v -> Dict k v -> Dict k v
+intersect (Dict _ _ t1Triplets) (Dict t2Bitmap t2Nodes _) =
     let
-        helper : Int -> k -> v -> Dict k v -> Dict k v
-        helper h k v t =
-            case getHelp 0 h k t2 of
-                Just _ ->
-                    insertHelp 0 h k v t
-
+        helper : ( Int, k, v ) -> Dict k v -> Dict k v
+        helper ( hash, key, value ) ((Dict bitmap nodes triplets) as dict) =
+            case getHelp 0 hash key t2Bitmap t2Nodes of
                 Nothing ->
-                    t
+                    dict
+
+                Just _ ->
+                    insertHelp 0 hash key value bitmap nodes triplets
     in
-    foldWithHash helper empty t1
+    intDictFoldl helper empty t1Triplets
 
 
 {-| Keep a key-value pair when its key does not appear in the second Dictionary.
 -}
-diff : Dict k v -> Dict k v2 -> Dict k v
-diff t1 t2 =
-    foldWithHash (\h k _ t -> removeHelp 0 h k t) t1 t2
+diff : Dict k v -> Dict k v -> Dict k v
+diff t1 (Dict _ _ t2Triplets) =
+    let
+        helper : ( Int, k, v ) -> Dict k v -> Dict k v
+        helper ( hash, key, value ) ((Dict bitmap nodes triplets) as dict) =
+            removeHelp 0 hash key bitmap nodes triplets
+    in
+    intDictFoldl helper t1 t2Triplets
 
 
-{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it!
+
+{- INT DICT
+
+   This is an internal structure which is only used for remembering the insertion
+   order of key-value pairs. We store the hash, key and value here as well, so
+   fold operations become as fast as possible.
+
+   The structure is sort of a combination of the above hash map and `Array`. This
+   structure allows removing a value stored at a certain index, without changing the
+   index of every other key-value pair. Unfortunetly, this does mean that the structure
+   has to be rebuilt at some point, but that happens so rarely that it can be ignored.
 -}
-encodeDict : (key -> Encoder) -> (value -> Encoder) -> Dict key value -> Encoder
-encodeDict encKey encValue d =
-    Lamdera.Wire3.encodeList (Lamdera.Wire3.encodePair encKey encValue) (toList d)
 
 
-{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it!
+type alias IntDict k v =
+    { nextIndex : Int
+    , size : Int
+    , startShift : Int
+    , tree : IntDictNodeArray k v
+    , treeBitmap : Int
+    , tail : JsArray ( Int, k, v )
+    , tailBitmap : Int
+    }
+
+
+type alias IntDictNodeArray k v =
+    JsArray (IntDictNode k v)
+
+
+type IntDictNode k v
+    = IntLeaves Int (JsArray ( Int, k, v ))
+    | IntSubTree Int (IntDictNodeArray k v)
+
+
+intDictEmpty : IntDict k v
+intDictEmpty =
+    { nextIndex = 0
+    , size = 0
+    , startShift = shiftStep
+    , tree = JsArray.empty
+    , treeBitmap = 0
+    , tail = JsArray.empty
+    , tailBitmap = 0
+    }
+
+
+intDictPush : Int -> k -> v -> IntDict k v -> IntDict k v
+intDictPush hash key value dict =
+    let
+        newTail =
+            JsArray.push ( hash, key, value ) dict.tail
+
+        newSize =
+            dict.size + 1
+
+        newTailLength =
+            JsArray.length newTail
+
+        bitmapShift =
+            Bitwise.and bitMask dict.nextIndex
+
+        newTailBitmap =
+            Bitwise.or dict.tailBitmap (Bitwise.shiftLeftBy bitmapShift 1)
+    in
+    if newTailLength == branchFactor then
+        let
+            overflow =
+                Bitwise.shiftRightZfBy shiftStep newSize > Bitwise.shiftLeftBy dict.startShift 1
+
+            tailNode =
+                IntLeaves newTailBitmap newTail
+        in
+        if overflow then
+            let
+                newShift =
+                    dict.startShift + shiftStep
+
+                ( newTreeBitmap, newTree ) =
+                    IntSubTree dict.treeBitmap dict.tree
+                        |> JsArray.singleton
+                        |> intDictInsertTailInTree newShift dict.nextIndex tailNode 1
+            in
+            { nextIndex = dict.nextIndex + 1
+            , size = newSize
+            , startShift = newShift
+            , tree = newTree
+            , treeBitmap = newTreeBitmap
+            , tail = JsArray.empty
+            , tailBitmap = 0
+            }
+
+        else
+            let
+                ( newTreeBitmap, newTree ) =
+                    intDictInsertTailInTree
+                        dict.startShift
+                        dict.nextIndex
+                        tailNode
+                        dict.treeBitmap
+                        dict.tree
+            in
+            { nextIndex = dict.nextIndex + 1
+            , size = newSize
+            , startShift = dict.startShift
+            , tree = newTree
+            , treeBitmap = newTreeBitmap
+            , tail = JsArray.empty
+            , tailBitmap = 0
+            }
+
+    else
+        { nextIndex = dict.nextIndex + 1
+        , size = newSize
+        , startShift = dict.startShift
+        , tree = dict.tree
+        , treeBitmap = dict.treeBitmap
+        , tail = newTail
+        , tailBitmap = newTailBitmap
+        }
+
+
+intDictInsertTailInTree :
+    Int
+    -> Int
+    -> IntDictNode k v
+    -> Int
+    -> IntDictNodeArray k v
+    -> ( Int, IntDictNodeArray k v )
+intDictInsertTailInTree shift index tail bitmap tree =
+    let
+        pos =
+            Bitwise.and bitMask (Bitwise.shiftRightZfBy shift index)
+    in
+    if pos >= JsArray.length tree then
+        let
+            mask =
+                Bitwise.shiftLeftBy pos 1
+
+            newBitmap =
+                Bitwise.or mask bitmap
+        in
+        if shift == shiftStep then
+            ( newBitmap
+            , JsArray.push tail tree
+            )
+
+        else
+            let
+                ( subBitmap, subTree ) =
+                    intDictInsertTailInTree (shift - shiftStep) index tail 0 JsArray.empty
+            in
+            ( newBitmap
+            , JsArray.push (IntSubTree subBitmap subTree) tree
+            )
+
+    else
+        case JsArray.unsafeGet pos tree of
+            IntSubTree subBitmap subTree ->
+                let
+                    ( newSubBitmap, newSubTree ) =
+                        intDictInsertTailInTree (shift - shiftStep) index tail subBitmap subTree
+                in
+                ( bitmap
+                , JsArray.unsafeSet pos (IntSubTree newSubBitmap newSubTree) tree
+                )
+
+            IntLeaves _ _ ->
+                -- Should not happen as IntLeaves are at the bottom level,
+                -- so the true branch of the if statement should've been executed
+                ( bitmap, tree )
+
+
+{-| Will only ever be called when we know the index, so we don't need
+to do bounds checking.
 -}
-decodeDict : Decoder k -> Decoder value -> Decoder (Dict k value)
-decodeDict decKey decValue =
-    Lamdera.Wire3.decodeList (Lamdera.Wire3.decodePair decKey decValue) |> D.map fromList
+intDictSet : Int -> Int -> k -> v -> IntDict k v -> IntDict k v
+intDictSet index hash key value dict =
+    if index >= Bitwise.and invertedBitMask dict.nextIndex then
+        let
+            uncompressedIdx =
+                Bitwise.and bitMask index
+
+            comIdx =
+                compressedIndex uncompressedIdx dict.tailBitmap
+        in
+        { nextIndex = dict.nextIndex
+        , size = dict.size
+        , startShift = dict.startShift
+        , tree = dict.tree
+        , treeBitmap = dict.treeBitmap
+        , tail = JsArray.unsafeSet comIdx ( hash, key, value ) dict.tail
+        , tailBitmap = dict.tailBitmap
+        }
+
+    else
+        let
+            returned =
+                intDictSetHelp dict.startShift
+                    index
+                    ( hash, key, value )
+                    dict.treeBitmap
+                    dict.tree
+        in
+        case returned of
+            IntSubTree subBitmap subTree ->
+                { nextIndex = dict.nextIndex
+                , size = dict.size
+                , startShift = dict.startShift
+                , tree = subTree
+                , treeBitmap = subBitmap
+                , tail = dict.tail
+                , tailBitmap = dict.tailBitmap
+                }
+
+            IntLeaves _ _ ->
+                -- Cannot happen
+                dict
+
+
+intDictSetHelp :
+    Int
+    -> Int
+    -> ( Int, k, v )
+    -> Int
+    -> IntDictNodeArray k v
+    -> IntDictNode k v
+intDictSetHelp shift index value bitmap tree =
+    let
+        uncompressedIdx =
+            Bitwise.and bitMask (Bitwise.shiftRightZfBy shift index)
+
+        comIdx =
+            compressedIndex uncompressedIdx bitmap
+    in
+    case JsArray.unsafeGet comIdx tree of
+        IntSubTree subBitmap subTree ->
+            let
+                newSub =
+                    intDictSetHelp
+                        (shift - shiftStep)
+                        index
+                        value
+                        subBitmap
+                        subTree
+            in
+            JsArray.unsafeSet comIdx newSub tree
+                |> IntSubTree subBitmap
+
+        IntLeaves subBitmap subTree ->
+            let
+                leafUncompressedIdx =
+                    Bitwise.and bitMask index
+
+                leafComIdx =
+                    compressedIndex leafUncompressedIdx subBitmap
+
+                newSub =
+                    JsArray.unsafeSet leafComIdx value subTree
+                        |> IntLeaves subBitmap
+            in
+            JsArray.unsafeSet comIdx newSub tree
+                |> IntSubTree bitmap
+
+
+intDictRemove : Int -> IntDict k v -> IntDict k v
+intDictRemove index dict =
+    if index >= Bitwise.and invertedBitMask dict.nextIndex then
+        let
+            uncompressedIndex =
+                Bitwise.and bitMask index
+
+            compIdx =
+                compressedIndex uncompressedIndex dict.tailBitmap
+
+            mask =
+                Bitwise.shiftLeftBy uncompressedIndex 1
+        in
+        { nextIndex = dict.nextIndex
+        , size = dict.size - 1
+        , startShift = dict.startShift
+        , tree = dict.tree
+        , treeBitmap = dict.treeBitmap
+        , tail = JsArray.removeIndex compIdx dict.tail
+        , tailBitmap = Bitwise.xor dict.tailBitmap mask
+        }
+
+    else
+        case intDictRemoveHelper dict.startShift index dict.treeBitmap dict.tree of
+            IntSubTree subBitmap subTree ->
+                { nextIndex = dict.nextIndex
+                , size = dict.size - 1
+                , startShift = dict.startShift
+                , tree = subTree
+                , treeBitmap = subBitmap
+                , tail = dict.tail
+                , tailBitmap = dict.tailBitmap
+                }
+
+            IntLeaves _ _ ->
+                -- Cannot happen
+                dict
+
+
+intDictRemoveHelper : Int -> Int -> Int -> IntDictNodeArray k v -> IntDictNode k v
+intDictRemoveHelper shift index bitmap tree =
+    let
+        uncompressedIndex =
+            Bitwise.and bitMask (Bitwise.shiftRightZfBy shift index)
+
+        compIdx =
+            compressedIndex uncompressedIndex bitmap
+    in
+    case JsArray.unsafeGet compIdx tree of
+        IntSubTree subBitmap subTree ->
+            let
+                newSub =
+                    intDictRemoveHelper (shift - shiftStep) index subBitmap subTree
+            in
+            JsArray.unsafeSet compIdx newSub tree
+                |> IntSubTree bitmap
+
+        IntLeaves subBitmap subTree ->
+            let
+                leafUncompressedIndex =
+                    Bitwise.and bitMask index
+
+                leafCompIdx =
+                    compressedIndex leafUncompressedIndex subBitmap
+
+                mask =
+                    Bitwise.shiftLeftBy leafUncompressedIndex 1
+
+                newSubBitmap =
+                    Bitwise.xor subBitmap mask
+
+                newSub =
+                    JsArray.removeIndex leafCompIdx subTree
+                        |> IntLeaves newSubBitmap
+            in
+            JsArray.unsafeSet compIdx newSub tree
+                |> IntSubTree bitmap
+
+
+intDictFoldl : (( Int, k, v ) -> acc -> acc) -> acc -> IntDict k v -> acc
+intDictFoldl func baseCase dict =
+    let
+        helper : IntDictNode k v -> acc -> acc
+        helper node acc =
+            case node of
+                IntLeaves _ subTree ->
+                    JsArray.foldl func acc subTree
+
+                IntSubTree _ subTree ->
+                    JsArray.foldl helper acc subTree
+    in
+    JsArray.foldl func (JsArray.foldl helper baseCase dict.tree) dict.tail
+
+
+intDictFoldr : (( Int, k, v ) -> acc -> acc) -> acc -> IntDict k v -> acc
+intDictFoldr func baseCase dict =
+    let
+        helper : IntDictNode k v -> acc -> acc
+        helper node acc =
+            case node of
+                IntLeaves _ subTree ->
+                    JsArray.foldr func acc subTree
+
+                IntSubTree _ subTree ->
+                    JsArray.foldr helper acc subTree
+    in
+    JsArray.foldr helper (JsArray.foldr func baseCase dict.tail) dict.tree

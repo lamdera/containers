@@ -1,18 +1,16 @@
-/*
-import Elm.Kernel.Utils exposing (Tuple2)
-*/
+var _Skinney$elm_hashmap_exploration$Native_JsArray = function() {
 
-var _JsArray_empty = [];
+var empty = [];
 
-var _JsArray_singleton = function(val) {
+function singleton(val) {
     return [val];
-};
+}
 
-var _JsArray_length = function(arr) {
+function length(arr) {
     return arr.length;
-};
+}
 
-var _JsArray_initialize = F3(function(size, offset, f) {
+function initialize(size, offset, f) {
     var result = new Array(size);
 
     for (var i = 0; i < size; i++) {
@@ -20,25 +18,30 @@ var _JsArray_initialize = F3(function(size, offset, f) {
     }
 
     return result;
-});
+}
 
-var _JsArray_initializeFromList = F2(function(max, ls) {
+function initializeFromList(max, ls) {
     var result = new Array(max);
 
     for (var i = 0; i < max && ls.ctor !== '[]'; i++) {
-        result[i] = ls.a;
-        ls = ls.b;
+        result[i] = ls._0;
+        ls = ls._1;
     }
 
     result.length = i;
-    return __Utils_Tuple2(result, ls);
-});
 
-var _JsArray_unsafeGet = F2(function(idx, arr) {
+    return {
+        ctor: '_Tuple2',
+        _0: result,
+        _1: ls
+    };
+}
+
+function unsafeGet(idx, arr) {
     return arr[idx];
-});
+}
 
-var _JsArray_unsafeSet = F3(function(idx, val, arr) {
+function unsafeSet(idx, val, arr) {
     var length = arr.length;
     var result = new Array(length);
 
@@ -48,41 +51,41 @@ var _JsArray_unsafeSet = F3(function(idx, val, arr) {
 
     result[idx] = val;
     return result;
-});
+}
 
-var _JsArray_unsafeInsert = F3(function(idx, val, arr) {
-    var length = arr.length;
-    var result = new Array(length + 1);
+    function unsafeInsert(idx, val, arr) {
+	var length = arr.length;
+	var result = new Array(length + 1);
 
-    for (var i = 0; i < idx; i++) {
-	result[i] = arr[i];
+	for (var i = 0; i < idx; i++) {
+	    result[i] = arr[i];
+	}
+
+	result[idx] = val;
+
+	for (var i = idx; i < length; i++) {
+	    result[i + 1] = arr[i];
+	}
+
+	return result;
     }
 
-    result[idx] = val;
+    function removeIndex(idx, arr) {
+	var length = arr.length;
+	var result = new Array(length - 1);
 
-    for (var i = idx; i < length; i++) {
-	result[i + 1] = arr[i];
+	for (var i = 0; i < idx; i++) {
+	    result[i] = arr[i];
+	}
+
+	for (var i = idx + 1; i < length; i++) {
+	    result[i - 1] = arr[i];
+	}
+
+	return result;
     }
 
-    return result;
-});
-
-var _JsArray_removeIndex = F2(function(idx, arr) {
-    var length = arr.length;
-    var result = new Array(length - 1);
-
-    for (var i = 0; i < idx; i++) {
-	result[i] = arr[i];
-    }
-
-    for (var i = idx + 1; i < length; i++) {
-	result[i - 1] = arr[i];
-    }
-
-    return result;
-});
-
-var _JsArray_push = F2(function(val, arr) {
+function push(val, arr) {
     var length = arr.length;
     var result = new Array(length + 1);
 
@@ -92,9 +95,9 @@ var _JsArray_push = F2(function(val, arr) {
 
     result[length] = val;
     return result;
-});
+}
 
-var _JsArray_foldl = F3(function(f, acc, arr) {
+function foldl(f, acc, arr) {
     var length = arr.length;
 
     for (var i = 0; i < length; i++) {
@@ -102,17 +105,17 @@ var _JsArray_foldl = F3(function(f, acc, arr) {
     }
 
     return acc;
-});
+}
 
-var _JsArray_foldr = F3(function(f, acc, arr) {
+function foldr(f, acc, arr) {
     for (var i = arr.length - 1; i >= 0; i--) {
         acc = A2(f, arr[i], acc);
     }
 
     return acc;
-});
+}
 
-var _JsArray_map = F2(function(f, arr) {
+function map(f, arr) {
     var length = arr.length;
     var result = new Array(length);
 
@@ -121,9 +124,9 @@ var _JsArray_map = F2(function(f, arr) {
     }
 
     return result;
-});
+}
 
-var _JsArray_indexedMap = F3(function(f, offset, arr) {
+function indexedMap(f, offset, arr) {
     var length = arr.length;
     var result = new Array(length);
 
@@ -132,13 +135,13 @@ var _JsArray_indexedMap = F3(function(f, offset, arr) {
     }
 
     return result;
-});
+}
 
-var _JsArray_slice = F3(function(from, to, arr) {
+function slice(from, to, arr) {
     return arr.slice(from, to);
-});
+}
 
-var _JsArray_appendN = F3(function(n, dest, source) {
+function appendN(n, dest, source) {
     var destLen = dest.length;
     var itemsToCopy = n - destLen;
 
@@ -158,4 +161,25 @@ var _JsArray_appendN = F3(function(n, dest, source) {
     }
 
     return result;
-});
+}
+
+return {
+    empty: empty,
+    singleton: singleton,
+    length: length,
+    initialize: F3(initialize),
+    initializeFromList: F2(initializeFromList),
+    unsafeGet: F2(unsafeGet),
+    unsafeSet: F3(unsafeSet),
+    unsafeInsert: F3(unsafeInsert),
+    removeIndex: F2(removeIndex),
+    push: F2(push),
+    foldl: F3(foldl),
+    foldr: F3(foldr),
+    map: F2(map),
+    indexedMap: F3(indexedMap),
+    slice: F3(slice),
+    appendN: F3(appendN)
+};
+
+}();

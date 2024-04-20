@@ -4,7 +4,7 @@ module Hash.Set exposing
     , isEmpty, member, size
     , union, intersect, diff
     , toList, fromList
-    , map, fold, filter, partition
+    , map, foldl, foldr, filter, partition
     )
 
 {-| A set of unique values.
@@ -37,14 +37,11 @@ module Hash.Set exposing
 
 # Transform
 
-@docs map, fold, filter, partition
+@docs map, foldl, foldr, filter, partition
 
 -}
 
-import Bytes.Decode as D exposing (Decoder)
-import Bytes.Encode as E exposing (Encoder)
 import Hash.Dict as Dict exposing (Dict)
-import Lamdera.Wire3
 
 
 {-| Represents a set of unique values. So `(Set Int)` is a set of integers and
@@ -141,16 +138,23 @@ fromList xs =
 
 {-| Fold over the values in a set.
 -}
-fold : (a -> b -> b) -> b -> Set a -> b
-fold f init (Set dict) =
-    Dict.fold (\k _ acc -> f k acc) init dict
+foldl : (a -> b -> b) -> b -> Set a -> b
+foldl f b (Set dict) =
+    Dict.foldl (\k _ b -> f k b) b dict
+
+
+{-| Fold over the values in a set.
+-}
+foldr : (a -> b -> b) -> b -> Set a -> b
+foldr f b (Set dict) =
+    Dict.foldr (\k _ b -> f k b) b dict
 
 
 {-| Map a function onto a set, creating a new set with no duplicates.
 -}
 map : (a -> b) -> Set a -> Set b
 map fn (Set dict) =
-    Set (Dict.fold (\k _ b -> Dict.insert (fn k) True b) Dict.empty dict)
+    Set (Dict.foldl (\k _ b -> Dict.insert (fn k) True b) Dict.empty dict)
 
 
 {-| Create a new set consisting only of elements which satisfy a predicate.
@@ -170,17 +174,3 @@ partition p (Set dict) =
             Dict.partition (\k _ -> p k) dict
     in
     ( Set trues, Set falses )
-
-
-{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it!
--}
-encodeHashSet : (value -> Encoder) -> Set value -> Encoder
-encodeHashSet encVal s =
-    Lamdera.Wire3.encodeList encVal (toList s)
-
-
-{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it!
--}
-decodeHashSet : Decoder k -> Decoder (Set k)
-decodeHashSet decVal =
-    Lamdera.Wire3.decodeList decVal |> D.map fromList
