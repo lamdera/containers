@@ -2,8 +2,8 @@ module Main exposing (main)
 
 import Benchmark exposing (Benchmark, benchmark, describe)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
-import Dict.LLRB as Dict
-import Hash.Dict as Dict2
+import Dict
+import OrderedDict as Dict2
 
 
 main : BenchmarkProgram
@@ -28,8 +28,8 @@ suite n =
                 (List.map toKeyValuePair (List.range (half + 1) n))
                 |> List.concat
 
-        toKeyValuePair n =
-            ( toString n, n )
+        toKeyValuePair n2 =
+            ( Debug.toString n2, n2 )
 
         setLs =
             List.map toKeyValuePair (List.range half (n + half))
@@ -49,7 +49,7 @@ suite n =
         keys =
             List.map (\( k, v ) -> k) ls
     in
-    describe (toString n ++ " elements")
+    describe (Debug.toString n ++ " elements")
         [ Benchmark.compare "Get"
             "Core"
             (\_ -> getter Dict.get keys original)
@@ -87,9 +87,9 @@ suite n =
             (\_ -> Dict2.map (\k v -> v + 1) updated)
         , Benchmark.compare "Filter"
             "Core"
-            (\_ -> Dict.filter (\k v -> v % 2 == 0) original)
+            (\_ -> Dict.filter (\k v -> modBy 2 v == 0) original)
             "Hash"
-            (\_ -> Dict2.filter (\k v -> v % 2 == 0) updated)
+            (\_ -> Dict2.filter (\k v -> modBy 2 v == 0) updated)
         , Benchmark.compare "toList"
             "Core"
             (\_ -> Dict.toList original)

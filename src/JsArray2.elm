@@ -1,4 +1,4 @@
-module Hash.JsArray2 exposing
+module JsArray2 exposing
     ( JsArray2
     , empty, singleton, initialize
     , length, unsafeGet, unsafeSet, unsafeInsert, removeIndex, push
