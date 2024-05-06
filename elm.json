@@ -1,7 +1,7 @@
 {
   "type": "package",
   "name": "lamdera/containers",
-  "summary": "Insertion order preserving Dict and Set",
+  "summary": "Various data structures including Dict and Set",
   "license": "BSD-3-Clause",
   "version": "1.0.0",
   "exposed-modules": [
