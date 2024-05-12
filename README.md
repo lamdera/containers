@@ -1,14 +1,19 @@
-## Elm Hashmap Exploration
+## Containers
 
-This library implements a proper hashmap for Elm. The library maintains API compatability with `Dict`, so all you
-have to do to make use of this library is to change the import statement from:
+This is a collection of various container-like data structures. Currently only OrderedDict and OrderedSet are included.
 
-`import Dict`
+## OrderedDict and OrderedSet
 
-to:
+These behave like `Dict` and `Set` with some important differences:
+* They do not require `comparable` keys
+* toList returns a list of key-value pairs in insertion order rather than being sorted by comparable keys
+* `fromList [ ("A", 1), ("B", 2) ] /= fromList [ ("B", 2), ("A", 1) ]`, use unorderedEquals if you want to check if two OrderedDicts or OrderedSets are equal regardless of insertion order
 
-`import Hash.Dict as Dict`
+This is similar to [`pzp1997/assoc-list`](https://package.elm-lang.org/packages/pzp1997/assoc-list/latest/), however unlike assoc-list,
+OrderedDict and OrderedSet are backed by a hashmap meaning they have better asymptotic performance.
+For example insertions are `O(log(n))` rather than `O(n)` and fromList is `O(n * log(n))` rather than `O(n^2)`.
 
-## License
+## Attribution
 
-This library uses the BSD3 License. See LICENSE for more information.
+The core implementation for OrderedDict and OrderedSet was written by [Robin Hansen](https://github.com/robinheghan/).
+Thanks to [Ambue](https://ambue.com/) for sponsoring the work to get this integrated into Lamdera!

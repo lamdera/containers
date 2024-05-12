@@ -1,5 +1,6 @@
 module Tests exposing (tests)
 
+import Array
 import Dict
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int)
@@ -8,6 +9,7 @@ import OrderedDict exposing (OrderedDict)
 import OrderedSet
 import Random
 import Random.List
+import Set
 import Test exposing (..)
 
 
@@ -323,8 +325,8 @@ tests =
                             --        getCollision (index + 1)
                         in
                         OrderedDict.unorderedEquals
-                            (OrderedDict.fromList [ ( key0, "0" ), ( key1, "1" ), ( key2, "2" ) ] |> Debug.log "a")
-                            (OrderedDict.fromList [ ( key1, "1" ), ( key0, "0" ), ( key2, "2" ) ] |> Debug.log "b")
+                            (OrderedDict.fromList [ ( key0, "0" ), ( key1, "1" ), ( key2, "2" ) ])
+                            (OrderedDict.fromList [ ( key1, "1" ), ( key0, "0" ), ( key2, "2" ) ])
                             |> Expect.equal True
                 , test "Random list" <|
                     \() ->
@@ -390,6 +392,118 @@ tests =
                                     |> OrderedDict.fromList
                         in
                         OrderedDict.unorderedEquals dict1 dict2 |> Expect.equal False
+                , test "Insert bug" <|
+                    \() ->
+                        let
+                            dict =
+                                OrderedDict.fromList [ ( 0, 0 ), ( 933527461, 933527461 ), ( 5, 5 ) ]
+                        in
+                        Expect.equal
+                            ( Just 0, Just 933527461, Just 5 )
+                            ( OrderedDict.get 0 dict, OrderedDict.get 933527461 dict, OrderedDict.get 5 dict )
+                , test "==" <|
+                    \() ->
+                        let
+                            key1 =
+                                933527461
+
+                            key2 =
+                                3399271663
+
+                            pairs : List ( Int, Int )
+                            pairs =
+                                List.range 0 100000
+                                    |> List.map (\index -> ( index, index ))
+                                    |> (\list -> ( key1, key1 ) :: ( key2, key2 ) :: list)
+                                    |> (\a -> Random.step (Random.List.shuffle a) (Random.initialSeed 321))
+                                    |> Tuple.first
+
+                            dict1 : OrderedDict Int Int
+                            dict1 =
+                                List.foldl
+                                    (\index dict3 -> OrderedDict.remove index dict3)
+                                    (OrderedDict.fromList pairs)
+                                    (List.range 100 500)
+
+                            dict2 : OrderedDict Int Int
+                            dict2 =
+                                pairs
+                                    |> List.filter (\( index, _ ) -> index < 100 || index > 500)
+                                    |> OrderedDict.fromList
+                        in
+                        dict1 == dict2 |> Expect.equal True
+                , test "Not ==" <|
+                    \() ->
+                        let
+                            key1 =
+                                933527461
+
+                            key2 =
+                                3399271663
+
+                            pairs : List ( Int, Int )
+                            pairs =
+                                List.range 0 100000
+                                    |> List.map (\index -> ( index, index ))
+                                    |> (\list -> ( key1, key1 ) :: ( key2, key2 ) :: list)
+                                    |> (\a -> Random.step (Random.List.shuffle a) (Random.initialSeed 321))
+                                    |> Tuple.first
+
+                            dict1 : OrderedDict Int Int
+                            dict1 =
+                                List.foldl
+                                    (\index dict3 -> OrderedDict.remove index dict3)
+                                    (OrderedDict.fromList pairs)
+                                    (List.range 100 500)
+
+                            dict2 : OrderedDict Int Int
+                            dict2 =
+                                pairs
+                                    |> List.filter (\( index, _ ) -> index < 100 || index > 500)
+                                    |> List.reverse
+                                    |> OrderedDict.fromList
+                        in
+                        dict1 == dict2 |> Expect.equal False
+
+                --, test "Debug.toString OrderedDict" <|
+                --    \() ->
+                --        OrderedDict.fromList [ ( 1, 1 ) ] |> Debug.toString |> Expect.equal "OrderedDict.fromList [(1,1)]"
+                --, test "Debug.toString OrderedSet" <|
+                --    \() ->
+                --        OrderedSet.fromList [ 1 ] |> Debug.toString |> Expect.equal "OrderedSet.fromList [1]"
+                --, test "Debug.toString Dict" <|
+                --    \() ->
+                --        Dict.fromList [ ( 1, 1 ) ] |> Debug.toString |> Expect.equal "Dict.fromList [(1,1)]"
+                --, test "Debug.toString Set" <|
+                --    \() ->
+                --        Set.fromList [ 1 ] |> Debug.toString |> Expect.equal "Set.fromList [1]"
+                --, test "Debug.toString Array" <|
+                --    \() ->
+                --        Array.fromList [ ( 1, 1 ) ] |> Debug.toString |> Expect.equal "Array.fromList [(1,1)]"
+                , test "Array ==" <|
+                    \() ->
+                        Array.fromList [ 1 ] == Array.fromList [ 1 ] |> Expect.equal True
+                , test "Array not ==" <|
+                    \() ->
+                        Array.fromList [ 1 ] == Array.fromList [ 0 ] |> Expect.equal False
+                , test "Set ==" <|
+                    \() ->
+                        Set.fromList [ 1 ] == Set.fromList [ 1 ] |> Expect.equal True
+                , test "Set not ==" <|
+                    \() ->
+                        Set.fromList [ 1 ] == Set.fromList [ 0 ] |> Expect.equal False
+                , test "Dict ==" <|
+                    \() ->
+                        Dict.fromList [ ( 1, 1 ) ] == Dict.fromList [ ( 1, 1 ) ] |> Expect.equal True
+                , test "Dict not ==" <|
+                    \() ->
+                        Dict.fromList [ ( 1, 1 ) ] == Dict.fromList [ ( 1, 0 ) ] |> Expect.equal False
+                , test "OrderedSet ==" <|
+                    \() ->
+                        OrderedSet.fromList [ 1 ] == OrderedSet.fromList [ 1 ] |> Expect.equal True
+                , test "OrderedSet not ==" <|
+                    \() ->
+                        OrderedSet.fromList [ 1 ] == OrderedSet.fromList [ 0 ] |> Expect.equal False
                 ]
     in
     describe "Dict Tests"
@@ -399,7 +513,7 @@ tests =
         , transformTests
         , fuzzTests
         , collisionTests
-        , Test.only equalityTests
+        , equalityTests
         ]
 
 
