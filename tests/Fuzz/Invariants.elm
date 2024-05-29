@@ -1,0 +1,46 @@
+module Fuzz.Invariants exposing (respectsInvariants, respectsInvariantsFuzz)
+
+import Expect
+import Fuzz exposing (Fuzzer)
+import OrderedDict as Dict exposing (OrderedDict)
+import Test exposing (Test, describe, fuzz, test)
+
+
+{-| Checks whether a dictionary respects one invariant:
+
+1.  the cached size is the same as the length of `toList`
+
+-}
+respectsInvariants : OrderedDict comparable value -> Test
+respectsInvariants dict =
+    describe "Respects the invariants"
+        [ test "The cached size is correct" <|
+            \_ ->
+                dict
+                    |> hasCorrectSize
+                    |> Expect.equal True
+        ]
+
+
+{-| Checks whether a dictionary respects one invariant:
+
+1.  the cached size is the same as the length of `toList`
+
+-}
+respectsInvariantsFuzz : Fuzzer (OrderedDict comparable value) -> Test
+respectsInvariantsFuzz fuzzer =
+    describe "Respects the invariants"
+        [ fuzz fuzzer "The cached size is correct" <|
+            \dict ->
+                dict
+                    |> hasCorrectSize
+                    |> Expect.equal True
+        ]
+
+
+hasCorrectSize : OrderedDict comparable v -> Bool
+hasCorrectSize dict =
+    dict
+        |> Dict.toList
+        |> List.length
+        |> (==) (Dict.size dict)
