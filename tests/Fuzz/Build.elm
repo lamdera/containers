@@ -5,7 +5,7 @@ import Fuzz exposing (Fuzzer)
 import Fuzz.Common exposing (expectEqual)
 import Fuzz.Fuzzers exposing (Key, Value, dictFuzzer, keyFuzzer, valueFuzzer)
 import Fuzz.Invariants exposing (respectsInvariants, respectsInvariantsFuzz)
-import OrderedDict as Dict exposing (OrderedDict)
+import SeqDict as Dict exposing (SeqDict)
 import Test exposing (Test, describe, fuzz, fuzz2, test)
 
 
@@ -52,7 +52,7 @@ singletonTest =
         value =
             1
 
-        singleton : OrderedDict Key Value
+        singleton : SeqDict Key Value
         singleton =
             Dict.singleton key value
     in
@@ -78,11 +78,11 @@ singletonTest =
 insertTest : Test
 insertTest =
     let
-        insertFuzzer : Fuzzer ( Key, Value, OrderedDict Key Value )
+        insertFuzzer : Fuzzer ( Key, Value, SeqDict Key Value )
         insertFuzzer =
             Fuzz.triple keyFuzzer valueFuzzer dictFuzzer
 
-        insertedFuzzer : Fuzzer (OrderedDict Key Value)
+        insertedFuzzer : Fuzzer (SeqDict Key Value)
         insertedFuzzer =
             Fuzz.map3 Dict.insert keyFuzzer valueFuzzer dictFuzzer
     in
@@ -118,11 +118,11 @@ insertTest =
 updateTest : Test
 updateTest =
     let
-        updateFuzzer : Fuzzer ( Key, OrderedDict Key Value )
+        updateFuzzer : Fuzzer ( Key, SeqDict Key Value )
         updateFuzzer =
             Fuzz.pair keyFuzzer dictFuzzer
 
-        updatedFuzzer : Fuzzer (OrderedDict Key Value)
+        updatedFuzzer : Fuzzer (SeqDict Key Value)
         updatedFuzzer =
             Fuzz.map3 Dict.update
                 keyFuzzer

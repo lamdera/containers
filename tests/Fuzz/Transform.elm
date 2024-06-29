@@ -5,7 +5,7 @@ import Fuzz exposing (Fuzzer)
 import Fuzz.Common exposing (expectEqual)
 import Fuzz.Fuzzers exposing (Key, Value, dictFuzzer)
 import Fuzz.Invariants exposing (respectsInvariantsFuzz)
-import OrderedDict as Dict exposing (OrderedDict)
+import SeqDict as Dict exposing (SeqDict)
 import Test exposing (Test, describe, fuzz)
 
 
@@ -16,6 +16,7 @@ suite =
         , foldlTest
         , foldrTest
         , filterTest
+        , filterMapTest
         , partitionTest
         ]
 
@@ -124,6 +125,43 @@ filterTest =
         ]
 
 
+filterMapTest : Test
+filterMapTest =
+    let
+        f : Key -> Value -> Maybe Value
+        f _ v =
+            if modBy 2 v == 0 then
+                Just v
+
+            else
+                Nothing
+
+        filteredFuzzer =
+            Fuzz.map (Dict.filterMap f) dictFuzzer
+    in
+    describe "filterMap"
+        [ fuzz dictFuzzer "Is equivalent to toList >> List.filterMap >> fromList" <|
+            \dict ->
+                dict
+                    |> Dict.filterMap f
+                    |> expectEqual
+                        (dict
+                            |> Dict.toList
+                            |> List.filterMap
+                                (\( k, v ) ->
+                                    case f k v of
+                                        Just v2 ->
+                                            Just ( k, v2 )
+
+                                        Nothing ->
+                                            Nothing
+                                )
+                            |> Dict.fromList
+                        )
+        , respectsInvariantsFuzz filteredFuzzer
+        ]
+
+
 partitionTest : Test
 partitionTest =
     let
@@ -131,7 +169,7 @@ partitionTest =
         f _ v =
             modBy 2 v == 0
 
-        partitionedFuzzer : Fuzzer ( OrderedDict Key Value, OrderedDict Key Value )
+        partitionedFuzzer : Fuzzer ( SeqDict Key Value, SeqDict Key Value )
         partitionedFuzzer =
             Fuzz.map (Dict.partition f) dictFuzzer
     in

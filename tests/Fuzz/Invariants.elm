@@ -2,7 +2,7 @@ module Fuzz.Invariants exposing (respectsInvariants, respectsInvariantsFuzz)
 
 import Expect
 import Fuzz exposing (Fuzzer)
-import OrderedDict as Dict exposing (OrderedDict)
+import SeqDict as Dict exposing (SeqDict)
 import Test exposing (Test, describe, fuzz, test)
 
 
@@ -11,7 +11,7 @@ import Test exposing (Test, describe, fuzz, test)
 1.  the cached size is the same as the length of `toList`
 
 -}
-respectsInvariants : OrderedDict comparable value -> Test
+respectsInvariants : SeqDict comparable value -> Test
 respectsInvariants dict =
     describe "Respects the invariants"
         [ test "The cached size is correct" <|
@@ -27,7 +27,7 @@ respectsInvariants dict =
 1.  the cached size is the same as the length of `toList`
 
 -}
-respectsInvariantsFuzz : Fuzzer (OrderedDict comparable value) -> Test
+respectsInvariantsFuzz : Fuzzer (SeqDict comparable value) -> Test
 respectsInvariantsFuzz fuzzer =
     describe "Respects the invariants"
         [ fuzz fuzzer "The cached size is correct" <|
@@ -38,7 +38,7 @@ respectsInvariantsFuzz fuzzer =
         ]
 
 
-hasCorrectSize : OrderedDict comparable v -> Bool
+hasCorrectSize : SeqDict comparable v -> Bool
 hasCorrectSize dict =
     dict
         |> Dict.toList

@@ -4,7 +4,7 @@ import Expect
 import Fuzz
 import Fuzz.Fuzzers exposing (dictFuzzer, keyFuzzer)
 import Fuzz.Invariants exposing (respectsInvariantsFuzz)
-import OrderedDict as Dict
+import SeqDict as Dict
 import Test exposing (Test, describe, fuzz2, fuzz3)
 
 

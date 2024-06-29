@@ -2,7 +2,7 @@ module Fuzz.Query exposing (suite)
 
 import Expect
 import Fuzz.Fuzzers as Fuzzers exposing (dictFuzzer, keyFuzzer, valueFuzzer)
-import OrderedDict as Dict
+import SeqDict as Dict
 import Test exposing (Test, describe, fuzz, fuzz2, test)
 
 
@@ -103,7 +103,7 @@ equalTest =
                     |> Expect.notEqual (Fuzzers.veryUnbalanced 12)
         , fuzz2 dictFuzzer dictFuzzer "Is True iff equivalent via toList" <|
             \left right ->
-                (left |> Dict.unorderedEquals right)
+                (left == right)
                     |> Expect.equal (Dict.toList left == Dict.toList right)
         , test "Different structure is recognized as equal" <|
             \_ ->

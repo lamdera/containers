@@ -1,7 +1,7 @@
 module Fuzz.Fuzzers exposing (Key, Value, dictFuzzer, keyFuzzer, pairListFuzzer, valueFuzzer, veryBalanced, veryUnbalanced)
 
 import Fuzz exposing (Fuzzer)
-import OrderedDict as Dict exposing (OrderedDict)
+import SeqDict as Dict exposing (SeqDict)
 
 
 type alias Key =
@@ -12,7 +12,7 @@ type alias Value =
     Int
 
 
-dictFuzzer : Fuzzer (OrderedDict Key Value)
+dictFuzzer : Fuzzer (SeqDict Key Value)
 dictFuzzer =
     Fuzz.oneOf
         [ fromListFuzzer
@@ -22,14 +22,14 @@ dictFuzzer =
         ]
 
 
-fromOpsFuzzer : Fuzzer (OrderedDict Key Value)
+fromOpsFuzzer : Fuzzer (SeqDict Key Value)
 fromOpsFuzzer =
     opFuzzer
         |> Fuzz.listOfLengthBetween 0 100
         |> Fuzz.map (List.foldl applyOp Dict.empty)
 
 
-applyOp : Op -> OrderedDict Key Value -> OrderedDict Key Value
+applyOp : Op -> SeqDict Key Value -> SeqDict Key Value
 applyOp op acc =
     case op of
         Insert k v ->
@@ -68,7 +68,7 @@ type Op
     | Delete Int
 
 
-fromListFuzzer : Fuzzer (OrderedDict Key Value)
+fromListFuzzer : Fuzzer (SeqDict Key Value)
 fromListFuzzer =
     pairListFuzzer
         |> Fuzz.map Dict.fromList
@@ -94,14 +94,14 @@ valueFuzzer =
     Fuzz.int
 
 
-veryBalanced : Int -> OrderedDict Key Value
+veryBalanced : Int -> SeqDict Key Value
 veryBalanced n =
     let
-        insert : Int -> OrderedDict Key Value -> OrderedDict Key Value
+        insert : Int -> SeqDict Key Value -> SeqDict Key Value
         insert k =
             Dict.insert (String.fromInt k) k
 
-        go : Int -> Int -> OrderedDict Key Value -> OrderedDict Key Value
+        go : Int -> Int -> SeqDict Key Value -> SeqDict Key Value
         go low high acc =
             if low >= high then
                 insert low acc
@@ -119,7 +119,7 @@ veryBalanced n =
     go 1 n Dict.empty
 
 
-veryUnbalanced : Int -> OrderedDict Key Value
+veryUnbalanced : Int -> SeqDict Key Value
 veryUnbalanced n =
     List.range 1 n
         |> List.map (\k -> ( String.fromInt k, k ))

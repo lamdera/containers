@@ -4,18 +4,19 @@ import Array
 import Dict
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int)
+import Fuzz.Query
 import List
-import OrderedDict exposing (OrderedDict)
-import OrderedSet
 import Random
 import Random.List
+import SeqDict exposing (SeqDict)
+import SeqSet exposing (SeqSet)
 import Set
 import Test exposing (..)
 
 
-animals : OrderedDict String String
+animals : SeqDict String String
 animals =
-    OrderedDict.fromList [ ( "Tom", "cat" ), ( "Jerry", "mouse" ) ]
+    SeqDict.fromList [ ( "Tom", "cat" ), ( "Jerry", "mouse" ) ]
 
 
 type alias CollisionObject =
@@ -45,56 +46,56 @@ tests =
         buildTests =
             describe "build Tests"
                 [ test "empty" <|
-                    \() -> Expect.equal (OrderedDict.fromList []) OrderedDict.empty
+                    \() -> Expect.equal (SeqDict.fromList []) SeqDict.empty
                 , test "singleton" <|
-                    \() -> Expect.equal (OrderedDict.fromList [ ( "k", "v" ) ]) (OrderedDict.singleton "k" "v")
+                    \() -> Expect.equal (SeqDict.fromList [ ( "k", "v" ) ]) (SeqDict.singleton "k" "v")
                 , test "insert" <|
-                    \() -> Expect.equal (OrderedDict.fromList [ ( "k", "v" ) ]) (OrderedDict.insert "k" "v" OrderedDict.empty)
+                    \() -> Expect.equal (SeqDict.fromList [ ( "k", "v" ) ]) (SeqDict.insert "k" "v" SeqDict.empty)
                 , test "insert replace" <|
-                    \() -> Expect.equal (OrderedDict.fromList [ ( "k", "vv" ) ]) (OrderedDict.insert "k" "vv" (OrderedDict.singleton "k" "v"))
+                    \() -> Expect.equal (SeqDict.fromList [ ( "k", "vv" ) ]) (SeqDict.insert "k" "vv" (SeqDict.singleton "k" "v"))
                 , test "update" <|
-                    \() -> Expect.equal (OrderedDict.fromList [ ( "k", "vv" ) ]) (OrderedDict.update "k" (\v -> Just "vv") (OrderedDict.singleton "k" "v"))
+                    \() -> Expect.equal (SeqDict.fromList [ ( "k", "vv" ) ]) (SeqDict.update "k" (\v -> Just "vv") (SeqDict.singleton "k" "v"))
                 , test "update Nothing" <|
                     \() ->
-                        OrderedDict.singleton "k" "v"
-                            |> OrderedDict.update "k" (\v -> Nothing)
-                            |> OrderedDict.toList
+                        SeqDict.singleton "k" "v"
+                            |> SeqDict.update "k" (\v -> Nothing)
+                            |> SeqDict.toList
                             |> Expect.equal []
                 , test "remove" <|
                     \() ->
-                        OrderedDict.singleton "k" "v"
-                            |> OrderedDict.remove "k"
-                            |> OrderedDict.toList
+                        SeqDict.singleton "k" "v"
+                            |> SeqDict.remove "k"
+                            |> SeqDict.toList
                             |> Expect.equal []
                 , test "remove not found" <|
-                    \() -> Expect.equal (OrderedDict.singleton "k" "v") (OrderedDict.remove "kk" (OrderedDict.singleton "k" "v"))
+                    \() -> Expect.equal (SeqDict.singleton "k" "v") (SeqDict.remove "kk" (SeqDict.singleton "k" "v"))
                 , test "fromList excludes duplicates" <|
-                    \() -> Expect.equal (OrderedDict.singleton 1 1) (OrderedDict.fromList [ ( 1, 1 ), ( 1, 1 ) ])
+                    \() -> Expect.equal (SeqDict.singleton 1 1) (SeqDict.fromList [ ( 1, 1 ), ( 1, 1 ) ])
                 , test "size" <|
                     \() ->
-                        OrderedDict.empty
-                            |> OrderedDict.insert "k1" "v"
-                            |> OrderedDict.insert "k2" "v"
-                            |> OrderedDict.insert "k1" "y"
-                            |> OrderedDict.remove "k2"
-                            |> OrderedDict.size
+                        SeqDict.empty
+                            |> SeqDict.insert "k1" "v"
+                            |> SeqDict.insert "k2" "v"
+                            |> SeqDict.insert "k1" "y"
+                            |> SeqDict.remove "k2"
+                            |> SeqDict.size
                             |> Expect.equal 1
                 ]
 
         queryTests =
             describe "query Tests"
                 [ test "member 1" <|
-                    \() -> Expect.equal True (OrderedDict.member "Tom" animals)
+                    \() -> Expect.equal True (SeqDict.member "Tom" animals)
                 , test "member 2" <|
-                    \() -> Expect.equal False (OrderedDict.member "Spike" animals)
+                    \() -> Expect.equal False (SeqDict.member "Spike" animals)
                 , test "get 1" <|
-                    \() -> Expect.equal (Just "cat") (OrderedDict.get "Tom" animals)
+                    \() -> Expect.equal (Just "cat") (SeqDict.get "Tom" animals)
                 , test "get 2" <|
-                    \() -> Expect.equal Nothing (OrderedDict.get "Spike" animals)
+                    \() -> Expect.equal Nothing (SeqDict.get "Spike" animals)
                 , test "size of empty dictionary" <|
-                    \() -> Expect.equal 0 (OrderedDict.size OrderedDict.empty)
+                    \() -> Expect.equal 0 (SeqDict.size SeqDict.empty)
                 , test "size of example dictionary" <|
-                    \() -> Expect.equal 2 (OrderedDict.size animals)
+                    \() -> Expect.equal 2 (SeqDict.size animals)
                 ]
 
         combineTests =
@@ -102,51 +103,51 @@ tests =
                 [ test "union" <|
                     \() ->
                         Expect.equal
-                            (OrderedDict.toList animals)
-                            (OrderedDict.toList
-                                (OrderedDict.union
-                                    (OrderedDict.singleton "Jerry" "mouse")
-                                    (OrderedDict.singleton "Tom" "cat")
+                            (SeqDict.toList animals)
+                            (SeqDict.toList
+                                (SeqDict.union
+                                    (SeqDict.singleton "Jerry" "mouse")
+                                    (SeqDict.singleton "Tom" "cat")
                                 )
                             )
                 , test "union collison" <|
                     \() ->
                         Expect.equal
-                            (OrderedDict.toList (OrderedDict.singleton "Tom" "cat"))
-                            (OrderedDict.toList
-                                (OrderedDict.union
-                                    (OrderedDict.singleton "Tom" "cat")
-                                    (OrderedDict.singleton "Tom" "mouse")
+                            (SeqDict.toList (SeqDict.singleton "Tom" "cat"))
+                            (SeqDict.toList
+                                (SeqDict.union
+                                    (SeqDict.singleton "Tom" "cat")
+                                    (SeqDict.singleton "Tom" "mouse")
                                 )
                             )
                 , test "intersect" <|
                     \() ->
                         Expect.equal
-                            (OrderedDict.toList (OrderedDict.singleton "Tom" "cat"))
-                            (OrderedDict.toList
-                                (OrderedDict.intersect
+                            (SeqDict.toList (SeqDict.singleton "Tom" "cat"))
+                            (SeqDict.toList
+                                (SeqDict.intersect
                                     animals
-                                    (OrderedDict.singleton "Tom" "cat")
+                                    (SeqDict.singleton "Tom" "cat")
                                 )
                             )
                 , test "intersect collision" <|
                     \() ->
                         Expect.equal
-                            (OrderedDict.toList (OrderedDict.singleton "Tom" "wolf"))
-                            (OrderedDict.toList
-                                (OrderedDict.intersect
-                                    (OrderedDict.singleton "Tom" "wolf")
+                            (SeqDict.toList (SeqDict.singleton "Tom" "wolf"))
+                            (SeqDict.toList
+                                (SeqDict.intersect
+                                    (SeqDict.singleton "Tom" "wolf")
                                     animals
                                 )
                             )
                 , test "diff" <|
                     \() ->
                         Expect.equal
-                            (OrderedDict.toList (OrderedDict.singleton "Jerry" "mouse"))
-                            (OrderedDict.toList
-                                (OrderedDict.diff
+                            (SeqDict.toList (SeqDict.singleton "Jerry" "mouse"))
+                            (SeqDict.toList
+                                (SeqDict.diff
                                     animals
-                                    (OrderedDict.singleton "Tom" "cat")
+                                    (SeqDict.singleton "Tom" "cat")
                                 )
                             )
                 ]
@@ -154,32 +155,32 @@ tests =
         transformTests =
             describe "transform Tests"
                 [ test "filter" <|
-                    \() -> Expect.equal (OrderedDict.singleton "Tom" "cat") (OrderedDict.filter (\k v -> k == "Tom") animals)
+                    \() -> Expect.equal (SeqDict.singleton "Tom" "cat") (SeqDict.filter (\k v -> k == "Tom") animals)
                 , test "filter (numbers)" <|
                     \() ->
                         Expect.equal [ 2, 4, 6, 8, 10 ]
                             (List.range 1 10
                                 |> List.indexedMap Tuple.pair
-                                |> OrderedDict.fromList
-                                |> OrderedDict.filter (\_ v -> modBy 2 v == 0)
-                                |> OrderedDict.toList
+                                |> SeqDict.fromList
+                                |> SeqDict.filter (\_ v -> modBy 2 v == 0)
+                                |> SeqDict.toList
                                 |> List.map Tuple.second
                             )
                 , test "partition" <|
                     \() ->
                         Expect.equal
-                            ( OrderedDict.singleton "Tom" "cat", OrderedDict.singleton "Jerry" "mouse" )
-                            (OrderedDict.partition (\k v -> k == "Tom") animals)
+                            ( SeqDict.singleton "Tom" "cat", SeqDict.singleton "Jerry" "mouse" )
+                            (SeqDict.partition (\k v -> k == "Tom") animals)
                 , test "partition (numbers)" <|
                     \() ->
                         Expect.equal ( [ 2, 4, 6, 8, 10 ], [ 1, 3, 5, 7, 9 ] )
                             (List.range 1 10
                                 |> List.indexedMap Tuple.pair
-                                |> OrderedDict.fromList
-                                |> OrderedDict.partition (\_ v -> modBy 2 v == 0)
+                                |> SeqDict.fromList
+                                |> SeqDict.partition (\_ v -> modBy 2 v == 0)
                                 |> (\( a, b ) ->
-                                        ( OrderedDict.toList a |> List.map Tuple.second
-                                        , OrderedDict.toList b |> List.map Tuple.second
+                                        ( SeqDict.toList a |> List.map Tuple.second
+                                        , SeqDict.toList b |> List.map Tuple.second
                                         )
                                    )
                             )
@@ -189,13 +190,13 @@ tests =
             describe "Fuzz tests"
                 [ fuzz2 fuzzPairs int "Get works" <|
                     \pairs num ->
-                        OrderedDict.get num (OrderedDict.fromList pairs)
+                        SeqDict.get num (SeqDict.fromList pairs)
                             |> Expect.equal (Dict.get num (Dict.fromList pairs))
                 , fuzz fuzzPairs "Converting to/from list works" <|
                     \pairs ->
                         pairs
-                            |> OrderedDict.fromList
-                            |> OrderedDict.toList
+                            |> SeqDict.fromList
+                            |> SeqDict.toList
                             |> List.sortBy Tuple.first
                             |> Expect.equal (Dict.toList (Dict.fromList pairs))
                 , fuzz fuzzPairs "Insert order is maintained" <|
@@ -207,54 +208,54 @@ tests =
                                     |> listUnique
                         in
                         pairs
-                            |> OrderedDict.fromList
-                            |> OrderedDict.keys
+                            |> SeqDict.fromList
+                            |> SeqDict.keys
                             |> Expect.equal deduped
                 , fuzz2 fuzzPairs int "Insert works" <|
                     \pairs num ->
-                        OrderedDict.insert num num (OrderedDict.fromList pairs)
+                        SeqDict.insert num num (SeqDict.fromList pairs)
                             |> Expect.all
                                 [ expectSynchronized
                                 , expectEqualDict (Dict.insert num num (Dict.fromList pairs))
                                 ]
                 , fuzz2 fuzzPairs int "Removal works" <|
                     \pairs num ->
-                        OrderedDict.remove num (OrderedDict.fromList pairs)
+                        SeqDict.remove num (SeqDict.fromList pairs)
                             |> Expect.all
                                 [ expectSynchronized
                                 , expectEqualDict (Dict.remove num (Dict.fromList pairs))
                                 ]
                 , fuzz fuzzPairs "Map works" <|
                     \pairs ->
-                        OrderedDict.map (\k v -> k + v) (OrderedDict.fromList pairs)
+                        SeqDict.map (\k v -> k + v) (SeqDict.fromList pairs)
                             |> Expect.all
                                 [ expectSynchronized
                                 , expectEqualDict (Dict.map (\k v -> k + v) (Dict.fromList pairs))
                                 ]
                 , fuzz fuzzPairs "Filter works" <|
                     \pairs ->
-                        OrderedDict.filter (\k _ -> modBy 2 k == 0) (OrderedDict.fromList pairs)
+                        SeqDict.filter (\k _ -> modBy 2 k == 0) (SeqDict.fromList pairs)
                             |> Expect.all
                                 [ expectSynchronized
                                 , expectEqualDict (Dict.filter (\k _ -> modBy 2 k == 0) (Dict.fromList pairs))
                                 ]
                 , fuzz2 fuzzPairs fuzzPairs "Union works" <|
                     \pairs pairs2 ->
-                        OrderedDict.union (OrderedDict.fromList pairs) (OrderedDict.fromList pairs2)
+                        SeqDict.union (SeqDict.fromList pairs) (SeqDict.fromList pairs2)
                             |> Expect.all
                                 [ expectSynchronized
                                 , expectEqualDict (Dict.union (Dict.fromList pairs) (Dict.fromList pairs2))
                                 ]
                 , fuzz2 fuzzPairs fuzzPairs "Intersect works" <|
                     \pairs pairs2 ->
-                        OrderedDict.intersect (OrderedDict.fromList pairs) (OrderedDict.fromList pairs2)
+                        SeqDict.intersect (SeqDict.fromList pairs) (SeqDict.fromList pairs2)
                             |> Expect.all
                                 [ expectSynchronized
                                 , expectEqualDict (Dict.intersect (Dict.fromList pairs) (Dict.fromList pairs2))
                                 ]
                 , fuzz2 fuzzPairs fuzzPairs "Diff works" <|
                     \pairs pairs2 ->
-                        OrderedDict.diff (OrderedDict.fromList pairs) (OrderedDict.fromList pairs2)
+                        SeqDict.diff (SeqDict.fromList pairs) (SeqDict.fromList pairs2)
                             |> Expect.all
                                 [ expectSynchronized
                                 , expectEqualDict (Dict.diff (Dict.fromList pairs) (Dict.fromList pairs2))
@@ -265,15 +266,15 @@ tests =
             describe "Collision tests"
                 [ test "Insert" <|
                     \() ->
-                        OrderedSet.toList (OrderedSet.fromList collisionObjects)
+                        SeqSet.toList (SeqSet.fromList collisionObjects)
                             |> Expect.equal collisionObjects
                 , test "Remove" <|
                     \() ->
-                        OrderedSet.toList (OrderedSet.remove firstCollider (OrderedSet.fromList collisionObjects))
+                        SeqSet.toList (SeqSet.remove firstCollider (SeqSet.fromList collisionObjects))
                             |> Expect.equal [ secondCollider ]
                 , test "Get" <|
                     \() ->
-                        OrderedSet.member secondCollider (OrderedSet.fromList collisionObjects)
+                        SeqSet.member secondCollider (SeqSet.fromList collisionObjects)
                             |> Expect.equal True
                 ]
 
@@ -285,21 +286,21 @@ tests =
                             input =
                                 [ ( 1, "" ), ( 2, "" ), ( 3, "" ) ]
                         in
-                        OrderedDict.unorderedEquals
-                            (OrderedDict.fromList input)
-                            (OrderedDict.fromList (List.reverse input))
+                        SeqDict.unorderedEquals
+                            (SeqDict.fromList input)
+                            (SeqDict.fromList (List.reverse input))
                             |> Expect.equal True
                 , test "Not equal, missing item" <|
                     \() ->
-                        OrderedDict.unorderedEquals
-                            (OrderedDict.fromList [ ( 1, "" ), ( 2, "" ), ( 3, "" ) ])
-                            (OrderedDict.fromList [ ( 1, "" ), ( 2, "" ) ])
+                        SeqDict.unorderedEquals
+                            (SeqDict.fromList [ ( 1, "" ), ( 2, "" ), ( 3, "" ) ])
+                            (SeqDict.fromList [ ( 1, "" ), ( 2, "" ) ])
                             |> Expect.equal False
                 , test "Not equal, value is different" <|
                     \() ->
-                        OrderedDict.unorderedEquals
-                            (OrderedDict.fromList [ ( 1, "" ), ( 2, "" ), ( 3, "" ) ])
-                            (OrderedDict.fromList [ ( 1, "" ), ( 2, "" ), ( 3, "a" ) ])
+                        SeqDict.unorderedEquals
+                            (SeqDict.fromList [ ( 1, "" ), ( 2, "" ), ( 3, "" ) ])
+                            (SeqDict.fromList [ ( 1, "" ), ( 2, "" ), ( 3, "a" ) ])
                             |> Expect.equal False
                 , test "Handle hash collisions" <|
                     \() ->
@@ -318,15 +319,15 @@ tests =
                             --
                             --getCollision : Int -> Int
                             --getCollision index =
-                            --    if OrderedFNV.hash index == hash0 then
+                            --    if SeqFNV.hash index == hash0 then
                             --        index
                             --
                             --    else
                             --        getCollision (index + 1)
                         in
-                        OrderedDict.unorderedEquals
-                            (OrderedDict.fromList [ ( key0, "0" ), ( key1, "1" ), ( key2, "2" ) ])
-                            (OrderedDict.fromList [ ( key1, "1" ), ( key0, "0" ), ( key2, "2" ) ])
+                        SeqDict.unorderedEquals
+                            (SeqDict.fromList [ ( key0, "0" ), ( key1, "1" ), ( key2, "2" ) ])
+                            (SeqDict.fromList [ ( key1, "1" ), ( key0, "0" ), ( key2, "2" ) ])
                             |> Expect.equal True
                 , test "Random list" <|
                     \() ->
@@ -343,26 +344,26 @@ tests =
                                     |> List.map (\index -> ( index, index ))
                                     |> (\list -> ( key1, key1 ) :: ( key2, key2 ) :: list)
 
-                            dict1 : OrderedDict Int Int
+                            dict1 : SeqDict Int Int
                             dict1 =
                                 Random.step (Random.List.shuffle pairs) (Random.initialSeed 321)
                                     |> Tuple.first
-                                    |> OrderedDict.fromList
+                                    |> SeqDict.fromList
                                     |> (\dict ->
                                             List.foldl
-                                                (\index dict3 -> OrderedDict.remove index dict3)
+                                                (\index dict3 -> SeqDict.remove index dict3)
                                                 dict
                                                 (List.range 100 105)
                                        )
 
-                            dict2 : OrderedDict Int Int
+                            dict2 : SeqDict Int Int
                             dict2 =
                                 Random.step (Random.List.shuffle pairs) (Random.initialSeed 123)
                                     |> Tuple.first
                                     |> List.filter (\( index, _ ) -> index < 100 || index > 105)
-                                    |> OrderedDict.fromList
+                                    |> SeqDict.fromList
                         in
-                        OrderedDict.unorderedEquals dict1 dict2 |> Expect.equal True
+                        SeqDict.unorderedEquals dict1 dict2 |> Expect.equal True
                 , test "Not equal, random list" <|
                     \() ->
                         let
@@ -378,29 +379,85 @@ tests =
                                     |> List.map (\index -> ( index, index ))
                                     |> (\list -> ( key1, key1 ) :: ( key2, key2 ) :: list)
 
-                            dict1 : OrderedDict Int Int
+                            dict1 : SeqDict Int Int
                             dict1 =
                                 Random.step (Random.List.shuffle pairs) (Random.initialSeed 321)
                                     |> Tuple.first
                                     |> List.drop 1
-                                    |> OrderedDict.fromList
+                                    |> SeqDict.fromList
 
-                            dict2 : OrderedDict Int Int
+                            dict2 : SeqDict Int Int
                             dict2 =
                                 Random.step (Random.List.shuffle pairs) (Random.initialSeed 123)
                                     |> Tuple.first
-                                    |> OrderedDict.fromList
+                                    |> SeqDict.fromList
                         in
-                        OrderedDict.unorderedEquals dict1 dict2 |> Expect.equal False
+                        SeqDict.unorderedEquals dict1 dict2 |> Expect.equal False
                 , test "Insert bug" <|
                     \() ->
                         let
                             dict =
-                                OrderedDict.fromList [ ( 0, 0 ), ( 933527461, 933527461 ), ( 5, 5 ) ]
+                                SeqDict.fromList [ ( 0, 0 ), ( 933527461, 933527461 ), ( 5, 5 ) ]
                         in
                         Expect.equal
                             ( Just 0, Just 933527461, Just 5 )
-                            ( OrderedDict.get 0 dict, OrderedDict.get 933527461 dict, OrderedDict.get 5 dict )
+                            ( SeqDict.get 0 dict, SeqDict.get 933527461 dict, SeqDict.get 5 dict )
+                , test "SeqDict as key" <|
+                    \() ->
+                        let
+                            key1 =
+                                SeqDict.fromList [ ( "a", 2 ) ]
+
+                            key2 =
+                                SeqDict.fromList [ ( "a", 2 ), ( "b", 3 ) ] |> SeqDict.remove "b"
+
+                            dict : SeqDict (SeqDict String number) number
+                            dict =
+                                SeqDict.fromList [ ( key1, 1 ), ( key2, 2 ) ]
+                        in
+                        Expect.equal 1 (SeqDict.size dict)
+                , test "SeqSet as key" <|
+                    \() ->
+                        let
+                            key1 =
+                                SeqSet.fromList [ "a" ]
+
+                            key2 =
+                                SeqSet.fromList [ "a", "b" ] |> SeqSet.remove "b"
+
+                            dict : SeqDict (SeqSet String) number
+                            dict =
+                                SeqDict.fromList [ ( key1, 1 ), ( key2, 2 ) ]
+                        in
+                        Expect.equal 1 (SeqDict.size dict)
+                , test "Dict as key" <|
+                    \() ->
+                        let
+                            key1 =
+                                Dict.fromList [ ( "a", 2 ) ]
+
+                            key2 =
+                                Dict.fromList [ ( "a", 2 ), ( "b", 3 ) ] |> Dict.remove "b"
+
+                            dict : SeqDict (Dict.Dict String number) number
+                            dict =
+                                SeqDict.fromList [ ( key1, 1 ), ( key2, 2 ) ]
+                        in
+                        Expect.equal 1 (SeqDict.size dict)
+                , test "Set as key" <|
+                    \() ->
+                        let
+                            key1 =
+                                Set.fromList [ "a" ]
+
+                            key2 =
+                                Set.fromList [ "a", "b" ] |> Set.remove "b"
+
+                            dict : SeqDict (Set.Set String) number
+                            dict =
+                                SeqDict.fromList [ ( key1, 1 ), ( key2, 2 ) ]
+                        in
+                        Expect.equal 1 (SeqDict.size dict)
                 , test "==" <|
                     \() ->
                         let
@@ -418,18 +475,18 @@ tests =
                                     |> (\a -> Random.step (Random.List.shuffle a) (Random.initialSeed 321))
                                     |> Tuple.first
 
-                            dict1 : OrderedDict Int Int
+                            dict1 : SeqDict Int Int
                             dict1 =
                                 List.foldl
-                                    (\index dict3 -> OrderedDict.remove index dict3)
-                                    (OrderedDict.fromList pairs)
+                                    (\index dict3 -> SeqDict.remove index dict3)
+                                    (SeqDict.fromList pairs)
                                     (List.range 100 500)
 
-                            dict2 : OrderedDict Int Int
+                            dict2 : SeqDict Int Int
                             dict2 =
                                 pairs
                                     |> List.filter (\( index, _ ) -> index < 100 || index > 500)
-                                    |> OrderedDict.fromList
+                                    |> SeqDict.fromList
                         in
                         dict1 == dict2 |> Expect.equal True
                 , test "Not ==" <|
@@ -449,28 +506,28 @@ tests =
                                     |> (\a -> Random.step (Random.List.shuffle a) (Random.initialSeed 321))
                                     |> Tuple.first
 
-                            dict1 : OrderedDict Int Int
+                            dict1 : SeqDict Int Int
                             dict1 =
                                 List.foldl
-                                    (\index dict3 -> OrderedDict.remove index dict3)
-                                    (OrderedDict.fromList pairs)
+                                    (\index dict3 -> SeqDict.remove index dict3)
+                                    (SeqDict.fromList pairs)
                                     (List.range 100 500)
 
-                            dict2 : OrderedDict Int Int
+                            dict2 : SeqDict Int Int
                             dict2 =
                                 pairs
                                     |> List.filter (\( index, _ ) -> index < 100 || index > 500)
                                     |> List.reverse
-                                    |> OrderedDict.fromList
+                                    |> SeqDict.fromList
                         in
                         dict1 == dict2 |> Expect.equal False
 
-                --, test "Debug.toString OrderedDict" <|
+                --, test "Debug.toString SeqDict" <|
                 --    \() ->
-                --        OrderedDict.fromList [ ( 1, 1 ) ] |> Debug.toString |> Expect.equal "OrderedDict.fromList [(1,1)]"
-                --, test "Debug.toString OrderedSet" <|
+                --        SeqDict.fromList [ ( 1, 1 ) ] |> Debug.toString |> Expect.equal "SeqDict.fromList [(1,1)]"
+                --, test "Debug.toString SeqSet" <|
                 --    \() ->
-                --        OrderedSet.fromList [ 1 ] |> Debug.toString |> Expect.equal "OrderedSet.fromList [1]"
+                --        SeqSet.fromList [ 1 ] |> Debug.toString |> Expect.equal "SeqSet.fromList [1]"
                 --, test "Debug.toString Dict" <|
                 --    \() ->
                 --        Dict.fromList [ ( 1, 1 ) ] |> Debug.toString |> Expect.equal "Dict.fromList [(1,1)]"
@@ -498,12 +555,12 @@ tests =
                 , test "Dict not ==" <|
                     \() ->
                         Dict.fromList [ ( 1, 1 ) ] == Dict.fromList [ ( 1, 0 ) ] |> Expect.equal False
-                , test "OrderedSet ==" <|
+                , test "SeqSet ==" <|
                     \() ->
-                        OrderedSet.fromList [ 1 ] == OrderedSet.fromList [ 1 ] |> Expect.equal True
-                , test "OrderedSet not ==" <|
+                        SeqSet.fromList [ 1 ] == SeqSet.fromList [ 1 ] |> Expect.equal True
+                , test "SeqSet not ==" <|
                     \() ->
-                        OrderedSet.fromList [ 1 ] == OrderedSet.fromList [ 0 ] |> Expect.equal False
+                        SeqSet.fromList [ 1 ] == SeqSet.fromList [ 0 ] |> Expect.equal False
                 ]
     in
     describe "Dict Tests"
@@ -527,7 +584,7 @@ fuzzPairs =
         |> Fuzz.list
 
 
-expectEqualDict : Dict.Dict comparable a -> OrderedDict comparable a -> Expectation
+expectEqualDict : Dict.Dict comparable a -> SeqDict comparable a -> Expectation
 expectEqualDict core hash =
     let
         listify key value acc =
@@ -537,17 +594,17 @@ expectEqualDict core hash =
             Dict.foldr listify [] core
 
         hashList =
-            OrderedDict.toList hash
+            SeqDict.toList hash
                 |> List.sortBy Tuple.first
     in
     Expect.equal coreList hashList
 
 
-expectSynchronized : OrderedDict comparable a -> Expectation
+expectSynchronized : SeqDict comparable a -> Expectation
 expectSynchronized hash =
-    OrderedDict.foldl
+    SeqDict.foldl
         (\key value acc ->
-            case OrderedDict.get key hash of
+            case SeqDict.get key hash of
                 Just toCompare ->
                     if toCompare == value then
                         Dict.insert key value acc

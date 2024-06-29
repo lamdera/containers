@@ -3,7 +3,8 @@ module Fuzz.Lists exposing (suite)
 import Expect
 import Fuzz.Fuzzers exposing (Key, dictFuzzer, pairListFuzzer)
 import Fuzz.Invariants exposing (respectsInvariantsFuzz)
-import OrderedDict as Dict
+import SeqDict as Dict
+import Set
 import Test exposing (Test, describe, fuzz)
 
 
@@ -30,24 +31,18 @@ keysTest =
                 Dict.keys dict
                     |> List.length
                     |> Expect.equal (Dict.size dict)
-        , fuzz dictFuzzer "Is sorted" <|
-            \dict ->
-                let
-                    keys : List Key
-                    keys =
-                        Dict.keys dict
-                in
-                keys
-                    |> Expect.equal (List.sort keys)
         , fuzz dictFuzzer "Contains no duplicates" <|
             \dict ->
                 let
                     keys : List Key
                     keys =
                         Dict.keys dict
+
+                    keysSet : Set.Set Key
+                    keysSet =
+                        Set.fromList keys
                 in
-                keys
-                    |> Expect.equal (dedupBy identity <| List.sort keys)
+                Expect.equal (List.length keys) (Set.size keysSet)
         ]
 
 
@@ -70,13 +65,13 @@ valuesTest =
 toListTest : Test
 toListTest =
     describe "toList"
-        [ fuzz dictFuzzer "Is sorted by key" <|
-            \dict ->
-                dict
-                    |> Dict.toList
-                    |> List.sortBy Tuple.first
-                    |> Expect.equalLists (Dict.toList dict)
-        , fuzz dictFuzzer "Has the correct size" <|
+        [ --fuzz dictFuzzer "Is sorted by key" <|
+          --    \dict ->
+          --        dict
+          --            |> Dict.toList
+          --            |> List.sortBy Tuple.first
+          --            |> Expect.equalLists (Dict.toList dict)
+          fuzz dictFuzzer "Has the correct size" <|
             \dict ->
                 Dict.toList dict
                     |> List.length
@@ -87,13 +82,13 @@ toListTest =
 fromListTest : Test
 fromListTest =
     describe "fromList"
-        [ fuzz pairListFuzzer "Combined with toList is the equivalent of sort >> dedupBy Tuple.first" <|
-            \list ->
-                list
-                    |> Dict.fromList
-                    |> Dict.toList
-                    |> Expect.equalLists (dedupBy Tuple.first (List.sortBy Tuple.first list))
-        , fuzz dictFuzzer "Is the inverse to toList" <|
+        [ --fuzz pairListFuzzer "Combined with toList is the equivalent of sort >> dedupBy Tuple.first" <|
+          --    \list ->
+          --        list
+          --            |> Dict.fromList
+          --            |> Dict.toList
+          --            |> Expect.equalLists (dedupBy Tuple.first (List.sortBy Tuple.first list))
+          fuzz dictFuzzer "Is the inverse to toList" <|
             \dict ->
                 dict
                     |> Dict.toList
