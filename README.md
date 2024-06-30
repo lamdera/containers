@@ -4,7 +4,7 @@ This package is a collection of various container-like data structures. Currentl
 
 Install using `lamdera install lamdera/containers`.
 
-## SeqDict and SeqSet (sequential, )
+## SeqDict and SeqSet (sequential)
 
 These behave like `Dict` and `Set` with some important differences:
 
