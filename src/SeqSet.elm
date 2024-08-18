@@ -1,10 +1,10 @@
 module SeqSet exposing
-    ( empty, singleton, insert, remove
+    ( SeqSet
+    , empty, singleton, insert, remove
     , isEmpty, member, size, unorderedEquals
     , union, intersect, diff
     , toList, fromList
     , map, foldl, foldr, filter, partition
-    , SeqSet
     )
 
 {-| A set of unique values.
@@ -12,7 +12,7 @@ module SeqSet exposing
 
 # Sets
 
-@docs Set
+@docs SeqSet
 
 
 # Build
