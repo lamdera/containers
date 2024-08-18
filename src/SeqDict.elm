@@ -5,6 +5,7 @@ module SeqDict exposing
     , union, intersect, diff, merge
     , toList, fromList, keys, values
     , foldl, foldr, map, filter, filterMap, partition
+    , encodeDict, decodeDict
     )
 
 {-| A dictionary mapping unique keys to values where insertion order is preserved for functions like foldl and toList.
@@ -38,6 +39,11 @@ module SeqDict exposing
 # Transform
 
 @docs foldl, foldr, map, filter, filterMap, partition
+
+
+# Internal
+
+@docs encodeDict, decodeDict
 
 -}
 
@@ -996,14 +1002,14 @@ listFind predicate list =
                 listFind predicate rest
 
 
-{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it!
+{-| The Lamdera compiler relies on this function, it is not intended to be used directly. Vendor this function in your own codebase if you want to use it, as the encoding can change without notice.
 -}
 encodeDict : (key -> Encoder) -> (value -> Encoder) -> SeqDict key value -> Encoder
 encodeDict encKey encValue d =
     Lamdera.Wire3.encodeList (Lamdera.Wire3.encodePair encKey encValue) (toList d)
 
 
-{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it!
+{-| The Lamdera compiler relies on this function, it is not intended to be used directly. Vendor this function in your own codebase if you want to use it, as the encoding can change without notice.
 -}
 decodeDict : Decoder k -> Decoder value -> Decoder (SeqDict k value)
 decodeDict decKey decValue =

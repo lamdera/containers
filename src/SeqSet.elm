@@ -5,6 +5,7 @@ module SeqSet exposing
     , union, intersect, diff
     , toList, fromList
     , map, foldl, foldr, filter, partition
+    , encodeSet, decodeSet
     )
 
 {-| A set of unique values.
@@ -38,6 +39,11 @@ module SeqSet exposing
 # Transform
 
 @docs map, foldl, foldr, filter, partition
+
+
+# Internal
+
+@docs encodeSet, decodeSet
 
 -}
 
@@ -179,14 +185,14 @@ partition p (SeqSet_elm_builtin dict) =
     ( SeqSet_elm_builtin trues, SeqSet_elm_builtin falses )
 
 
-{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it!
+{-| The Lamdera compiler relies on this function, it is not intended to be used directly. Vendor this function in your own codebase if you want to use it, as the encoding can change without notice.
 -}
 encodeSet : (value -> Encoder) -> SeqSet value -> Encoder
 encodeSet encVal s =
     Lamdera.Wire3.encodeList encVal (toList s)
 
 
-{-| The Lamdera compiler relies on this function existing even though it isn't exposed. Don't delete it!
+{-| The Lamdera compiler relies on this function, it is not intended to be used directly. Vendor this function in your own codebase if you want to use it, as the encoding can change without notice.
 -}
 decodeSet : Decoder k -> Decoder (SeqSet k)
 decodeSet decVal =
