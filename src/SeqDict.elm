@@ -49,8 +49,7 @@ module SeqDict exposing
 
 import Array exposing (Array)
 import Bitwise
-import Bytes.Decode exposing (Decoder)
-import Bytes.Encode exposing (Encoder)
+import Bytes.Decode
 import FNV
 import JsArray2 exposing (JsArray2)
 import Lamdera.Wire3
@@ -1004,13 +1003,13 @@ listFind predicate list =
 
 {-| The Lamdera compiler relies on this function, it is not intended to be used directly. Vendor this function in your own codebase if you want to use it, as the encoding can change without notice.
 -}
-encodeDict : (key -> Encoder) -> (value -> Encoder) -> SeqDict key value -> Encoder
+encodeDict : (key -> Lamdera.Wire3.Encoder) -> (value -> Lamdera.Wire3.Encoder) -> SeqDict key value -> Lamdera.Wire3.Encoder
 encodeDict encKey encValue d =
     Lamdera.Wire3.encodeList (Lamdera.Wire3.encodePair encKey encValue) (toList d)
 
 
 {-| The Lamdera compiler relies on this function, it is not intended to be used directly. Vendor this function in your own codebase if you want to use it, as the encoding can change without notice.
 -}
-decodeDict : Decoder k -> Decoder value -> Decoder (SeqDict k value)
+decodeDict : Lamdera.Wire3.Decoder k -> Lamdera.Wire3.Decoder value -> Lamdera.Wire3.Decoder (SeqDict k value)
 decodeDict decKey decValue =
     Lamdera.Wire3.decodeList (Lamdera.Wire3.decodePair decKey decValue) |> Bytes.Decode.map fromList

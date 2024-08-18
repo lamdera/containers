@@ -47,8 +47,7 @@ module SeqSet exposing
 
 -}
 
-import Bytes.Decode exposing (Decoder)
-import Bytes.Encode exposing (Encoder)
+import Bytes.Decode
 import Lamdera.Wire3
 import SeqDict as Dict exposing (SeqDict)
 
@@ -187,14 +186,14 @@ partition p (SeqSet_elm_builtin dict) =
 
 {-| The Lamdera compiler relies on this function, it is not intended to be used directly. Vendor this function in your own codebase if you want to use it, as the encoding can change without notice.
 -}
-encodeSet : (value -> Encoder) -> SeqSet value -> Encoder
+encodeSet : (value -> Lamdera.Wire3.Encoder) -> SeqSet value -> Lamdera.Wire3.Encoder
 encodeSet encVal s =
     Lamdera.Wire3.encodeList encVal (toList s)
 
 
 {-| The Lamdera compiler relies on this function, it is not intended to be used directly. Vendor this function in your own codebase if you want to use it, as the encoding can change without notice.
 -}
-decodeSet : Decoder k -> Decoder (SeqSet k)
+decodeSet : Lamdera.Wire3.Decoder k -> Lamdera.Wire3.Decoder (SeqSet k)
 decodeSet decVal =
     Lamdera.Wire3.decodeList decVal |> Bytes.Decode.map fromList
 
