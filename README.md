@@ -22,3 +22,7 @@ For example insertions are `O(log(n))` rather than `O(n)` and fromList is `O(n *
 
 The core implementation for SeqDict and SeqSet was written by [Robin Hansen](https://github.com/robinheghan/).
 Thanks to [Ambue](https://ambue.com/) for sponsoring the work needed to get this integrated into Lamdera!
+
+## Additional reading
+
+If you'd like to read about the trade-offs that were made when designing this package, check out this [blog post](https://martinstewart.dev/stuff/lamdera-containers/)!
