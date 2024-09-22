@@ -16,7 +16,7 @@ This is similar to [`pzp1997/assoc-list`](https://package.elm-lang.org/packages/
 SeqDict and SeqSet are backed by a hashmap meaning they have better asymptotic performance.
 For example insertions are `O(log(n))` rather than `O(n)` and fromList is `O(n * log(n))` rather than `O(n^2)`.
 
-<sup>*Non-equatable Elm values are currently: functions, `Json.Value`, `Task`, `Cmd`, `Sub`, and `Never`.</sup>
+<sup>*Non-equatable Elm values are currently: functions, `Json.Value`, `Task`, `Cmd`, `Sub`, `Never`, `Texture` and `Shader`.</sup>
 
 ## Attribution
 
