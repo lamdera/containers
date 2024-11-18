@@ -18,6 +18,12 @@ For example insertions are `O(log(n))` rather than `O(n)` and fromList is `O(n *
 
 <sup>*Non-equatable Elm values are currently: functions, `Bytes`, `Html`, `Json.Value`, `Task`, `Cmd`, `Sub`, `Never`, `Texture`, `Shader`, and any datastructures containing these types.</sup>
 
+
+## Comparison to other Elm packages
+
+See miniBill's [comparison of Elm Dict implementations](https://docs.google.com/spreadsheets/d/1j2rHUx5Nf5auvg5ikzYxbW4e1M9g0-hgU8nMogLD4EY) for a meta-analysis of implementation and performance characteristics.
+
+
 ## Attribution
 
 The core implementation for SeqDict and SeqSet was written by [Robin Hansen](https://github.com/robinheghan/).
