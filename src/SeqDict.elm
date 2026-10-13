@@ -353,7 +353,7 @@ insertHelp shift hash key value bitmap nodes triplets =
                         Just ( existingIdx, _, _ ) ->
                             let
                                 whenRemoved =
-                                    List.filter keyFinder pairs
+                                    List.filter (\pair -> not (keyFinder pair)) pairs
 
                                 updated =
                                     ( existingIdx, key, value ) :: whenRemoved
@@ -493,7 +493,7 @@ removeHelp shift hash key bitmap nodes triplets =
                         (JsArray2.unsafeSet compIdx (SubTree newSubBitmap newSubNodes) nodes)
                         newTriplets
 
-            Collision _ vals ->
+            Collision xHash vals ->
                 let
                     maybeIdx =
                         listFind (\( _, k, _ ) -> k == key) vals
@@ -525,13 +525,13 @@ removeHelp shift hash key bitmap nodes triplets =
                     ( eIdx, eKey, eVal ) :: [] ->
                         SeqDict_elm_builtin
                             bitmap
-                            (JsArray2.unsafeSet compIdx (Leaf hash eIdx eKey eVal) nodes)
+                            (JsArray2.unsafeSet compIdx (Leaf xHash eIdx eKey eVal) nodes)
                             newTriplets
 
                     _ ->
                         SeqDict_elm_builtin
                             bitmap
-                            (JsArray2.unsafeSet compIdx (Collision hash newCollision) nodes)
+                            (JsArray2.unsafeSet compIdx (Collision xHash newCollision) nodes)
                             newTriplets
 
     else
