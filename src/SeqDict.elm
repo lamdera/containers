@@ -494,46 +494,34 @@ removeHelp shift hash key bitmap nodes triplets =
                         (JsArray2.unsafeSet compIdx (SubTree newSubBitmap newSubNodes) nodes)
                         newTriplets
 
-            Collision xHash vals ->
-                let
-                    maybeIdx =
-                        listFind (\( _, k, _ ) -> k == key) vals
-                            |> Maybe.map (\( idx, _, _ ) -> idx)
-
-                    newCollision =
-                        case maybeIdx of
-                            Just removeIdx ->
-                                List.filter (\( _, k, _ ) -> k /= key) vals
-
-                            Nothing ->
-                                vals
-
-                    newTriplets =
-                        case maybeIdx of
-                            Just removeIdx ->
+            Collision _ vals ->
+                case listFind (\( _, k, _ ) -> k == key) vals of
+                    Just ( removeIdx, _, _ ) ->
+                        let
+                            newTriplets =
                                 intDictRemove removeIdx triplets
+                        in
+                        case List.filter (\( _, k, _ ) -> k /= key) vals of
+                            [] ->
+                                SeqDict_elm_builtin
+                                    (Bitwise.xor bitmap mask)
+                                    (JsArray2.removeIndex compIdx nodes)
+                                    newTriplets
 
-                            Nothing ->
-                                triplets
-                in
-                case newCollision of
-                    [] ->
-                        SeqDict_elm_builtin
-                            (Bitwise.xor bitmap mask)
-                            (JsArray2.removeIndex compIdx nodes)
-                            newTriplets
+                            ( eIdx, eKey, eVal ) :: [] ->
+                                SeqDict_elm_builtin
+                                    bitmap
+                                    (JsArray2.unsafeSet compIdx (Leaf hash eIdx eKey eVal) nodes)
+                                    newTriplets
 
-                    ( eIdx, eKey, eVal ) :: [] ->
-                        SeqDict_elm_builtin
-                            bitmap
-                            (JsArray2.unsafeSet compIdx (Leaf xHash eIdx eKey eVal) nodes)
-                            newTriplets
+                            newCollision ->
+                                SeqDict_elm_builtin
+                                    bitmap
+                                    (JsArray2.unsafeSet compIdx (Collision hash newCollision) nodes)
+                                    newTriplets
 
-                    _ ->
-                        SeqDict_elm_builtin
-                            bitmap
-                            (JsArray2.unsafeSet compIdx (Collision xHash newCollision) nodes)
-                            newTriplets
+                    Nothing ->
+                        SeqDict_elm_builtin bitmap nodes triplets
 
     else
         SeqDict_elm_builtin
