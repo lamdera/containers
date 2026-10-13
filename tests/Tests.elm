@@ -40,6 +40,13 @@ collisionObjects =
     ]
 
 
+{-| "698" and "237607" have the same hash
+-}
+collidingStrings : SeqDict String Int
+collidingStrings =
+    SeqDict.empty |> SeqDict.insert "698" 1 |> SeqDict.insert "237607" 2
+
+
 tests : Test
 tests =
     let
@@ -275,6 +282,60 @@ tests =
                 , test "Get" <|
                     \() ->
                         SeqSet.member secondCollider (SeqSet.fromList collisionObjects)
+                            |> Expect.equal True
+                , test "Inserting an existing key keeps the key it collides with" <|
+                    \() ->
+                        SeqDict.insert "698" 3 collidingStrings
+                            |> Expect.all
+                                [ SeqDict.get "237607" >> Expect.equal (Just 2)
+                                , SeqDict.toList >> Expect.equal [ ( "698", 3 ), ( "237607", 2 ) ]
+                                , SeqDict.insert "237607" 4
+                                    >> SeqDict.toList
+                                    >> Expect.equal [ ( "698", 3 ), ( "237607", 4 ) ]
+                                ]
+                , test "Updating an existing key keeps the key it collides with" <|
+                    \() ->
+                        SeqDict.update "698" (Maybe.map ((+) 2)) collidingStrings
+                            |> Expect.all
+                                [ SeqDict.get "237607" >> Expect.equal (Just 2)
+                                , SeqDict.toList >> Expect.equal [ ( "698", 3 ), ( "237607", 2 ) ]
+                                ]
+                , test "updateIfExists keeps the key it collides with" <|
+                    \() ->
+                        SeqDict.updateIfExists "698" ((+) 2) collidingStrings
+                            |> Expect.all
+                                [ SeqDict.get "237607" >> Expect.equal (Just 2)
+                                , SeqDict.toList >> Expect.equal [ ( "698", 3 ), ( "237607", 2 ) ]
+                                ]
+                , test "Inserting an existing key keeps the other keys in a collision of five" <|
+                    \() ->
+                        let
+                            -- All five strings have the same hash
+                            colliders =
+                                [ "4446438", "9083548", "15750573", "33152112", "38891445" ]
+
+                            dict =
+                                List.foldl
+                                    (\key acc -> SeqDict.insert key 1 acc)
+                                    (SeqDict.fromList (List.map (\key -> ( key, 0 )) colliders))
+                                    colliders
+                        in
+                        ( List.map (\key -> SeqDict.get key dict) colliders, SeqDict.size dict )
+                            |> Expect.equal ( List.repeat 5 (Just 1), 5 )
+                , test "Removing a missing key whose hash shares its lowest bits with a collision leaves the collision intact" <|
+                    \() ->
+                        -- The hash of "180" has the same lowest 10 bits as the hash of "698" and "237607"
+                        SeqDict.remove "180" collidingStrings
+                            |> SeqDict.insert "698" 3
+                            |> Expect.all
+                                [ SeqDict.toList >> Expect.equal [ ( "698", 3 ), ( "237607", 2 ) ]
+                                , SeqDict.size >> Expect.equal 2
+                                ]
+                , test "Inserting an existing element into a SeqSet keeps the element it collides with" <|
+                    \() ->
+                        SeqSet.fromList [ "698", "237607" ]
+                            |> SeqSet.insert "698"
+                            |> SeqSet.member "237607"
                             |> Expect.equal True
                 ]
 
