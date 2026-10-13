@@ -15,7 +15,10 @@ set -eu
 
 APP=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(dirname "$APP")
-LAMDERA=${LAMDERA:-$(command -v lamdera)}
+# Lamdera 1.4.0 compiles some constructors to uncurried functions (e.g.
+# ElmTestVariant__Labeled$), which elm-test-rs 3.0.0-5 doesn't recognise as tests,
+# so it finds none. 1.3.2 works.
+LAMDERA=${LAMDERA:-$(npx --yes --package=lamdera@0.19.1-1.3.2 -- sh -c 'command -v lamdera')}
 REAL_ELM_HOME=${ELM_HOME:-$HOME/.elm}
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
