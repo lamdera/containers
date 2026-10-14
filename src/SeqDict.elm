@@ -1,11 +1,12 @@
 module SeqDict exposing
-    ( SeqDict
+    ( SeqDict(..)
     , empty, singleton, insert, update, updateIfExists, remove
     , get, isEmpty, member, size, unorderedEquals
     , union, intersect, diff, merge
     , toList, fromList, keys, values
     , foldl, foldr, map, filter, filterMap, partition
     , encodeDict, decodeDict
+    , Node(..), NodeArray
     )
 
 {-| A dictionary mapping unique keys to values where insertion order is preserved for functions like foldl and toList.
