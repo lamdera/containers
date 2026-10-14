@@ -1,4 +1,4 @@
-module Fuzz.Collisions exposing (suite)
+module Fuzz.Collisions exposing (Key, Op(..), Value, allKeys, keep, keyFuzzer, modelFromList, opFuzzer, suite, valueFuzzer)
 
 {-| Applies random sequences of SeqDict operations to keys that mostly share a
 hash with other keys, and after every operation compares the dict to a plain
