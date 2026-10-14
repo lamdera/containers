@@ -463,5 +463,42 @@ suite =
                 \old -> expectRepaired old (SeqDict.partition (\_ _ -> True) old |> Tuple.first)
             , Test.fuzz oldDictFuzzer "union into empty" <|
                 \old -> expectRepaired old (SeqDict.union old SeqDict.empty)
+            , Test.test "Abc" <|
+                \_ ->
+                    let
+                        d =
+                            SeqDictOld.empty |> SeqDictOld.insert "698" 1 |> SeqDictOld.insert "237607" 2
+
+                        e =
+                            SeqDictOld.insert "698" 3 d |> Debug.log "e"
+
+                        g =
+                            SeqDictOld.insert "237607" 4 e |> Debug.log "g"
+
+                        h =
+                            SeqDict.insert "698" 3 d |> Debug.log "h"
+
+                        i =
+                            SeqDict.insert "237607" 5 d |> Debug.log "i"
+
+                        j =
+                            SeqDict.get "237607" d |> Debug.log "j"
+
+                        k =
+                            SeqDict.get "237607" g |> Debug.log "k"
+
+                        l =
+                            SeqDict.remove "237607" g |> Debug.log "l"
+
+                        m =
+                            SeqDictOld.remove "237607" g |> Debug.log "m"
+
+                        n =
+                            SeqDictOld.remove "237607" g |> SeqDict.remove "237607" |> Debug.log "n"
+
+                        o =
+                            SeqDictOld.remove "237607" g |> SeqDict.remove "237607" |> SeqDict.insert "698" 6 |> Debug.log "o"
+                    in
+                    Expect.equal 0 1
             ]
         ]
