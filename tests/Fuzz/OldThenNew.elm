@@ -412,6 +412,28 @@ suite =
             (Fuzz.pair oldDictFuzzer (Fuzz.listOfLengthBetween 1 30 keyOpFuzzer))
             "After any SeqDictOld damage, insert, remove and update never do worse than SeqDictOld"
             (\( old, ops ) -> expectKeyOpsAreNoWorseThanOld old ops)
+        , Test.test "Removing one key of a collision node whose hash SeqDictOld overwrote, then setting the other, keeps one entry" <|
+            \_ ->
+                let
+                    -- "180" isn't in the dict but reaches the node holding "698" and "237607",
+                    -- so SeqDictOld.remove stores 180's hash on that node.
+                    old =
+                        SeqDictOld.empty
+                            |> SeqDictOld.insert "698" 1
+                            |> SeqDictOld.insert "237607" 2
+                            |> SeqDictOld.remove "180"
+
+                    new =
+                        old
+                            |> SeqDict.remove "698"
+                            |> SeqDict.insert "237607" 3
+                in
+                Expect.all
+                    [ \_ -> SeqDict.toList new |> Expect.equal [ ( "237607", 3 ) ]
+                    , \_ -> SeqDict.get "237607" new |> Expect.equal (Just 3)
+                    , \_ -> SeqDict.size new |> Expect.equal 1
+                    ]
+                    ()
         , fuzz2 oldDictFuzzer
             valueFuzzer
             "map keeps what get and toList return"
